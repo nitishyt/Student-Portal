@@ -58,14 +58,14 @@ const Login = () => {
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder={userType === 'admin' ? 'Enter: admin' : 'Student Username'}
+          placeholder={userType === 'admin' ? 'Admin user ' : 'Student Username'}
         />
 
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder={userType === 'admin' ? 'Enter: admin123' : 'Student Password'}
+          placeholder={userType === 'admin' ? 'Admin password ' : 'Student Password'}
         />
 
         <button type="submit">Login</button>

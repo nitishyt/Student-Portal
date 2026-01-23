@@ -37,8 +37,16 @@ const AdminDashboard = () => {
   // Add new student
   const addStudent = (e) => {
     e.preventDefault();
-    if (!studentForm.name || !studentForm.rollNo) {
-      alert('Name and Roll Number are required');
+    
+    // Validate all required fields
+    if (!studentForm.name || !studentForm.rollNo || !studentForm.branch || !studentForm.standard || !studentForm.phone) {
+      alert('All fields are required');
+      return;
+    }
+    
+    // Validate phone number (exactly 10 digits)
+    if (!/^\d{10}$/.test(studentForm.phone)) {
+      alert('Phone number must be exactly 10 digits');
       return;
     }
 
@@ -130,7 +138,7 @@ const AdminDashboard = () => {
     <div>
       <div className="header">
         <h1>Admin Dashboard</h1>
-        <button onClick={handleLogout} className="btn">Logout</button>
+        <button onClick={handleLogout} className="btn" id='log'>Logout</button>
       </div>
       
       <div className="nav">
@@ -166,31 +174,41 @@ const AdminDashboard = () => {
                   type="text"
                   value={studentForm.name}
                   onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
-                  placeholder="Student Name"
+                  placeholder="Student Name "
+                  required
                 />
                 <input
                   type="text"
                   value={studentForm.rollNo}
                   onChange={(e) => setStudentForm({...studentForm, rollNo: e.target.value})}
-                  placeholder="Roll Number"
+                  placeholder="Roll Number "
+                  required
                 />
                 <input
                   type="text"
                   value={studentForm.branch}
                   onChange={(e) => setStudentForm({...studentForm, branch: e.target.value})}
-                  placeholder="Branch"
+                  placeholder="Branch "
+                  required
                 />
                 <input
                   type="text"
                   value={studentForm.standard}
                   onChange={(e) => setStudentForm({...studentForm, standard: e.target.value})}
-                  placeholder="Standard"
+                  placeholder="Standard "
+                  required
                 />
                 <input
-                  type="text"
+                  type="tel"
                   value={studentForm.phone}
-                  onChange={(e) => setStudentForm({...studentForm, phone: e.target.value})}
-                  placeholder="Phone Number"
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setStudentForm({...studentForm, phone: value});
+                  }}
+                  placeholder="Phone Number (10 digits) "
+                  pattern="[0-9]{10}"
+                  maxLength="10"
+                  required
                 />
                 <button type="submit" className="btn">Add Student</button>
               </form>
