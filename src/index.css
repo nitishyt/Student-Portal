@@ -220,3 +220,8 @@ body {
 .grade.poor {
   background: #f44336;
 }
+
+#log{
+  background-color: white;
+  color: black;
+}
