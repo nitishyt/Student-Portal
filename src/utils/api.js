@@ -1,17 +1,22 @@
 import axios from 'axios';
 
+const API_BASE =
+  window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:5000'
+    : 'https://student-academic-management-portal-ksqd.onrender.com';
 
 const api = axios.create({
-  baseURL: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:5000/api'
-    : (import.meta.env.VITE_API_BASE_URL || '') + '/api',
+  baseURL: `${API_BASE}/api`,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true
+  withCredentials: false
 });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -35,13 +40,14 @@ export const facultyAPI = {
 
 export const attendanceAPI = {
   getByStudent: (studentId) => api.get(`/attendance/student/${studentId}`),
-  mark: (data) => api.post('/attendance', {
-    studentId: data.studentId,
-    date: data.date,
-    time: data.time,
-    subject: data.subject,
-    status: data.status
-  })
+  mark: (data) =>
+    api.post('/attendance', {
+      studentId: data.studentId,
+      date: data.date,
+      time: data.time,
+      subject: data.subject,
+      status: data.status
+    })
 };
 
 export const resultAPI = {
