@@ -28,7 +28,7 @@ app.use(cors({
 }));
 
 // Fallback for pre-flight if needed
-app.options('(.*)', cors());
+app.options('*', cors());
 
 // Body parsing
 app.use(bodyParser.json());
