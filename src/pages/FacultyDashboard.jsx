@@ -10,14 +10,18 @@ const FacultyDashboard = () => {
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [attendanceStatus, setAttendanceStatus] = useState('present');
   const [attendanceTime, setAttendanceTime] = useState('');
-  const [attendanceSubject, setAttendanceSubject] = useState('');
-  const [subject, setSubject] = useState('');
+  const [attendanceSubject, setAttendanceSubject] = useState(JSON.parse(localStorage.getItem('user') || '{}').subject || '');
+  const [subject, setSubject] = useState(JSON.parse(localStorage.getItem('user') || '{}').subject || '');
   const [marks, setMarks] = useState('');
+  const facultySubject = JSON.parse(localStorage.getItem('user') || '{}').subject;
   const [refresh, setRefresh] = useState(0);
   const [results, setResults] = useState([]);
   const [statsCache, setStatsCache] = useState({});
   const [attendanceCalendar, setAttendanceCalendar] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [selectedMonthDate, setSelectedMonthDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterBranch, setFilterBranch] = useState('');
   const [filterStandard, setFilterStandard] = useState('');
   const [bulkAttendance, setBulkAttendance] = useState({});
@@ -35,7 +39,7 @@ const FacultyDashboard = () => {
     if (students.length > 0) {
       fetchAllStats();
     }
-  }, [students]);
+  }, [students, currentMonth, currentYear]);
 
   const fetchAllStats = async () => {
     const cache = {};
@@ -52,8 +56,6 @@ const FacultyDashboard = () => {
   const calculateStatsForStudent = async (studentId) => {
     try {
       const attendance = await studentData.getAttendance(studentId);
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
       let workingDays = 0;
@@ -65,6 +67,9 @@ const FacultyDashboard = () => {
 
       const attendanceMap = {};
       attendance.forEach(record => {
+        // Filter by subject if facultySubject exists
+        if (facultySubject && record.subject !== facultySubject) return;
+
         if (!attendanceMap[record.date]) attendanceMap[record.date] = [];
         attendanceMap[record.date].push(record);
       });
@@ -164,7 +169,9 @@ const FacultyDashboard = () => {
       setRefresh(prev => prev + 1);
 
       setAttendanceTime('');
-      setAttendanceSubject('');
+      // Don't clear subject for faculty
+      if (!facultySubject) setAttendanceSubject('');
+
       alert('Attendance marked successfully!');
     }
   };
@@ -182,41 +189,51 @@ const FacultyDashboard = () => {
 
   const handleAddResult = async (e) => {
     e.preventDefault();
-    if (selectedStudent && subject && marks) {
+    if (selectedStudent && subject && marks !== '') {
       const studentId = selectedStudent._id || selectedStudent.id;
       const fileInput = e.target.querySelector('input[type="file"]');
       const file = fileInput?.files[0];
 
-      if (file) {
-        if (file.type !== 'application/pdf') {
-          alert('Please upload only PDF files');
-          return;
-        }
-        if (file.size > 500 * 1024) {
-          alert('File size must be less than 500KB');
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          await studentData.addResult(studentId, {
-            subject,
-            marks: parseInt(marks),
-            pdfFilename: file.name,
-            pdfFile: event.target.result
-          });
-          setSubject('');
+      try {
+        if (file) {
+          if (file.type !== 'application/pdf') {
+            alert('Please upload only PDF files');
+            return;
+          }
+          if (file.size > 500 * 1024) {
+            alert('File size must be less than 500KB');
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            try {
+              await studentData.addResult(studentId, {
+                subject,
+                marks: parseInt(marks),
+                pdfFilename: file.name,
+                pdfFile: event.target.result
+              });
+              if (!facultySubject) setSubject('');
+              setMarks('');
+              if (fileInput) fileInput.value = '';
+              await loadResultsForStudent(studentId);
+              alert('Result added successfully!');
+            } catch (err) {
+              console.error(err);
+              alert('Failed to add result: ' + (err.response?.data?.error || err.message));
+            }
+          };
+          reader.readAsDataURL(file);
+        } else {
+          await studentData.addResult(studentId, { subject, marks: parseInt(marks) });
+          if (!facultySubject) setSubject('');
           setMarks('');
-          if (fileInput) fileInput.value = '';
           await loadResultsForStudent(studentId);
           alert('Result added successfully!');
-        };
-        reader.readAsDataURL(file);
-      } else {
-        await studentData.addResult(studentId, { subject, marks: parseInt(marks) });
-        setSubject('');
-        setMarks('');
-        await loadResultsForStudent(studentId);
-        alert('Result added successfully!');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Failed to add result: ' + (err.response?.data?.error || err.message));
       }
     }
   };
@@ -225,8 +242,6 @@ const FacultyDashboard = () => {
 
   const loadAttendanceForStudent = async (studentId) => {
     if (!studentId) return;
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
     // Fix: await the async call
@@ -236,6 +251,9 @@ const FacultyDashboard = () => {
     const attendance = {};
     if (Array.isArray(flatAttendance)) {
       flatAttendance.forEach(record => {
+        // STRICT FILTER: Only show records for the faculty's subject
+        if (facultySubject && record.subject !== facultySubject) return;
+
         if (!attendance[record.date]) attendance[record.date] = [];
         attendance[record.date].push(record);
       });
@@ -404,7 +422,7 @@ const FacultyDashboard = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '15px' }}>
                   <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }} required />
                   <input type="time" value={attendanceTime} onChange={(e) => setAttendanceTime(e.target.value)} placeholder="Lecture Time" style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }} required />
-                  <input type="text" value={attendanceSubject} onChange={(e) => setAttendanceSubject(e.target.value)} placeholder="Subject/Lecture" style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }} required />
+                  <input type="text" value={attendanceSubject} onChange={(e) => setAttendanceSubject(e.target.value)} placeholder="Subject/Lecture" style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }} required disabled={!!facultySubject} />
                 </div>
 
                 <h3>Mark Attendance for Class</h3>
@@ -482,7 +500,7 @@ const FacultyDashboard = () => {
 
                       setBulkAttendance({});
                       setAttendanceTime('');
-                      setAttendanceSubject('');
+                      if (!facultySubject) setAttendanceSubject('');
                       setRefresh(prev => prev + 1);
                       alert(`Attendance marked for ${classStudents.length} students!`);
                     }}
@@ -496,26 +514,41 @@ const FacultyDashboard = () => {
 
             {/* Individual Student Selection (fallback) */}
             {!filterBranch || !filterStandard ? (
-              <div>
-                <h3>Or Select Individual Student</h3>
-                <div className="faculty-form">
-                  <select onChange={(e) => setSelectedStudent(students.find(s => (s._id || s.id) == e.target.value))} value={selectedStudent?._id || selectedStudent?.id || ''} className="premium-dropdown">
-                    <option value="">-- Select Student --</option>
-                    {students.map(student => (
-                      <option key={student._id || student.id} value={student._id || student.id}>{student.rollNo} - {student.name}</option>
-                    ))}
-                  </select>
+              <div style={{ marginTop: '30px' }}>
+                <h3 style={{ borderBottom: '2px solid #667eea', display: 'inline-block', paddingBottom: '5px' }}>Individual Attendance</h3>
+                <div className="info-card" style={{ maxWidth: '600px', margin: '20px 0', borderTop: '4px solid #667eea' }}>
+                  <div style={{ marginBottom: '25px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#4a5568', fontWeight: 'bold' }}>Select Student</label>
+                    <select onChange={(e) => setSelectedStudent(students.find(s => (s._id || s.id) == e.target.value))} value={selectedStudent?._id || selectedStudent?.id || ''} className="premium-dropdown">
+                      <option value="">-- Choose student from list --</option>
+                      {students.map(student => (
+                        <option key={student._id || student.id} value={student._id || student.id}>{student.rollNo} - {student.name}</option>
+                      ))}
+                    </select>
+                  </div>
 
                   {selectedStudent && (
-                    <form onSubmit={handleMarkAttendance}>
-                      <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} required />
-                      <input type="time" value={attendanceTime} onChange={(e) => setAttendanceTime(e.target.value)} placeholder="Lecture Time" required />
-                      <input type="text" value={attendanceSubject} onChange={(e) => setAttendanceSubject(e.target.value)} placeholder="Subject/Lecture" required />
-                      <select value={attendanceStatus} onChange={(e) => setAttendanceStatus(e.target.value)}>
-                        <option value="present">Present</option>
-                        <option value="absent">Absent</option>
-                      </select>
-                      <button type="submit">Mark Attendance</button>
+                    <form onSubmit={handleMarkAttendance} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#4a5568', fontSize: '0.9em' }}>Lecture Date</label>
+                        <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }} required />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#4a5568', fontSize: '0.9em' }}>Lecture Time</label>
+                        <input type="time" value={attendanceTime} onChange={(e) => setAttendanceTime(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }} required />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#4a5568', fontSize: '0.9em' }}>Subject</label>
+                        <input type="text" value={attendanceSubject} onChange={(e) => setAttendanceSubject(e.target.value)} placeholder="Subject" style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd', background: !!facultySubject ? '#f7fafc' : '#fff' }} required disabled={!!facultySubject} />
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#4a5568', fontSize: '0.9em' }}>Status</label>
+                        <select value={attendanceStatus} onChange={(e) => setAttendanceStatus(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd', background: attendanceStatus === 'present' ? '#e8f5e9' : '#ffebee' }}>
+                          <option value="present">Present</option>
+                          <option value="absent">Absent</option>
+                        </select>
+                      </div>
+                      <button type="submit" className="btn" style={{ gridColumn: 'span 2', padding: '12px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', marginTop: '10px' }}>Mark Attendance</button>
                     </form>
                   )}
                 </div>
@@ -577,12 +610,29 @@ const FacultyDashboard = () => {
                 </>
               ) : (
                 <div>
-                  <button onClick={() => setSelectedStudent(null)} className="btn-back">
-                    ← Back to Student List
-                  </button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                    <button onClick={() => setSelectedStudent(null)} className="btn-back" style={{ margin: 0 }}>
+                      ← Back to Student List
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'white', padding: '10px 20px', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+                      <span style={{ fontWeight: '600', color: '#4a5568' }}>Select Month:</span>
+                      <input
+                        type="date"
+                        value={selectedMonthDate}
+                        onChange={(e) => {
+                          const date = new Date(e.target.value);
+                          setSelectedMonthDate(e.target.value);
+                          setCurrentMonth(date.getMonth());
+                          setCurrentYear(date.getFullYear());
+                          if (selectedStudent) loadAttendanceForStudent(selectedStudent._id || selectedStudent.id);
+                        }}
+                        style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e0', outline: 'none', cursor: 'pointer' }}
+                      />
+                    </div>
+                  </div>
 
                   <div className="info-card">
-                    <h3>Attendance Statistics for {selectedStudent.name}</h3>
+                    <h3>Attendance Statistics for {selectedStudent.name} ({new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })})</h3>
                     {(() => {
                       const stats = statsCache[selectedStudent._id || selectedStudent.id] || { total: 0, present: 0, percentage: 0 };
                       return (
@@ -632,17 +682,19 @@ const FacultyDashboard = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedDay.records.map((record, idx) => (
-                            <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                              <td style={{ padding: '10px' }}>{record.time}</td>
-                              <td style={{ padding: '10px' }}>{record.subject}</td>
-                              <td style={{ padding: '10px' }}>
-                                <span style={{ padding: '5px 10px', borderRadius: '5px', background: record.status === 'present' ? '#4CAF50' : '#f44336', color: 'white', fontSize: '12px' }}>
-                                  {record.status.toUpperCase()}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                          {selectedDay.records
+                            .filter(record => !facultySubject || record.subject === facultySubject)
+                            .map((record, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: '10px' }}>{record.time}</td>
+                                <td style={{ padding: '10px' }}>{record.subject}</td>
+                                <td style={{ padding: '10px' }}>
+                                  <span style={{ padding: '5px 10px', borderRadius: '5px', background: record.status === 'present' ? '#4CAF50' : '#f44336', color: 'white', fontSize: '12px' }}>
+                                    {record.status.toUpperCase()}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
                         </tbody>
                       </table>
                     </div>
@@ -686,44 +738,94 @@ const FacultyDashboard = () => {
               </select>
 
               {selectedStudent && (
-                <form onSubmit={handleAddResult}>
-                  <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" required />
-                  <input type="number" value={marks} onChange={(e) => setMarks(e.target.value)} placeholder="Marks" min="0" max="100" required />
-                  <input type="file" accept=".pdf" />
-                  <small style={{ display: 'block', margin: '5px 0', color: '#666' }}>Optional: Upload PDF (max 500KB)</small>
-                  <button type="submit">Add Result</button>
-                </form>
+                <div className="faculty-form" style={{ background: 'white', padding: '20px', borderRadius: '20px', maxWidth: '500px', margin: '20px auto' }}>
+                  <h3 style={{ marginBottom: '15px' }}>Add Result for {selectedStudent.name}</h3>
+                  <form onSubmit={handleAddResult}>
+                    <div className="form-group">
+                      <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" required disabled={!!facultySubject} style={{ background: facultySubject ? '#f5f5f5' : '#fff' }} />
+                    </div>
+                    <div className="form-group">
+                      <input type="number" value={marks} onChange={(e) => setMarks(e.target.value)} placeholder="Marks (0-100)" min="0" max="100" required />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: '12px', color: '#666' }}>Upload PDF (Optional):</label>
+                      <input type="file" accept=".pdf" style={{ marginTop: '5px' }} />
+                    </div>
+                    <button type="submit" style={{ width: '100%', padding: '10px', background: '#667eea', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                      Submit Result
+                    </button>
+                  </form>
+                </div>
               )}
             </div>
 
             {selectedStudent && (
-              <div className="results-list">
-                <h3>Results for {selectedStudent.name}</h3>
+              <div className="results-list" style={{ marginTop: '30px' }}>
+                <h3 style={{ borderBottom: '2px solid #667eea', display: 'inline-block', paddingBottom: '5px', marginBottom: '20px' }}>Upload History</h3>
                 {results.length === 0 ? (
-                  <p>No results added yet.</p>
+                  <div className="info-card" style={{ textAlign: 'center', padding: '30px', color: '#718096' }}>
+                    <p>No results have been uploaded yet for this student.</p>
+                  </div>
                 ) : (
-                  results.map((result, index) => (
-                    <div key={result._id || result.id || index} className="result-item">
-                      <div>
-                        <h4>{result.subject}</h4>
-                        <small>Date: {new Date(result.createdAt).toLocaleDateString()}</small>
-                        {(result.pdfFilename || result.fileName) && (
-                          <div>
-                            <a href={result.pdfFile || result.fileData} download={result.pdfFilename || result.fileName} style={{ color: '#667eea', textDecoration: 'none' }}>📄 {result.pdfFilename || result.fileName}</a>
+                  <div style={{ display: 'grid', gap: '15px' }}>
+                    {results
+                      .filter(r => !facultySubject || r.subject === facultySubject)
+                      .map((result, index) => (
+                        <div key={result._id || result.id || index} className="result-item" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'stretch' }}>
+                          <div style={{ padding: '20px', flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div>
+                                <h4 style={{ margin: '0 0 5px 0', color: '#2d3748', fontSize: '1.1em' }}>{result.subject}</h4>
+                                <span style={{ color: '#718096', fontSize: '0.85em' }}>📅 {new Date(result.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                              </div>
+                              <div className={`grade ${getGradeClass(result.marks)}`} style={{ fontSize: '1.2em', padding: '8px 15px', height: 'fit-content' }}>
+                                {result.marks}<span style={{ fontSize: '0.6em', opacity: 0.8 }}>/100</span>
+                              </div>
+                            </div>
+
+                            {(result.pdfFilename || result.fileName) && (
+                              <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #edf2f7' }}>
+                                <a
+                                  href={result.pdfFile || result.fileData}
+                                  download={result.pdfFilename || result.fileName}
+                                  style={{ color: '#667eea', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.9em', fontWeight: '600' }}
+                                >
+                                  <span style={{ fontSize: '1.2em' }}>📄</span> {result.pdfFilename || result.fileName}
+                                </a>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div className={`grade ${getGradeClass(result.marks)}`}>{result.marks}/100</div>
-                        <button onClick={async () => {
-                          if (window.confirm('Delete this result?')) {
-                            await studentData.deleteResult(selectedStudent._id || selectedStudent.id, result._id || result.id);
-                            await loadResultsForStudent(selectedStudent._id || selectedStudent.id);
-                          }
-                        }} style={{ background: '#f44336', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>Delete</button>
-                      </div>
-                    </div>
-                  ))
+                          <button
+                            onClick={async () => {
+                              if (window.confirm('Are you sure you want to delete this result?')) {
+                                await studentData.deleteResult(selectedStudent._id || selectedStudent.id, result._id || result.id);
+                                await loadResultsForStudent(selectedStudent._id || selectedStudent.id);
+                              }
+                            }}
+                            style={{
+                              background: '#f44336',
+                              color: 'white',
+                              border: 'none',
+                              padding: '5px 15px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '15px',
+                              borderRadius: '20px',
+                              fontWeight: 'bold',
+                              transition: 'all 0.2s',
+                              alignSelf: 'center',
+                              marginRight: '15px',
+                              height: 'fit-content'
+                            }}
+                            title="Delete Result"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                  </div>
                 )}
               </div>
             )}

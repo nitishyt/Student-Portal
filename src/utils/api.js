@@ -4,10 +4,11 @@ const api = axios.create({
   baseURL:
     window.location.hostname === 'localhost'
       ? 'http://localhost:5000/api'
-      : 'https://student-academic-management-portal-ksqd.onrender.com/api',
+      : 'https://student-academic-management-portal-ksgd.onrender.com/api',
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true
 });
 
 api.interceptors.request.use((config) => {
@@ -40,13 +41,17 @@ export const attendanceAPI = {
   getByStudent: (studentId) =>
     api.get(`/attendance/student/${studentId}`),
   mark: (data) =>
-    api.post('/attendance', data)
+    api.post('/attendance', data),
+  delete: (studentId, attendanceId) =>
+    api.delete(`/attendance/${attendanceId}`)
 };
 
 export const resultAPI = {
   getByStudent: (studentId) =>
     api.get(`/results/student/${studentId}`),
-  create: (data) => api.post('/results', data)
+  create: (data) => api.post('/results', data),
+  delete: (studentId, resultId) =>
+    api.delete(`/results/${resultId}`)
 };
 
 export default api;

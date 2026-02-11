@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Student = require('../models/Student');
+const Faculty = require('../models/Faculty');
 
 // Fallback secret for development if environment variable is missing
 const JWT_SECRET = process.env.JWT_SECRET || 'student_portal_secret_key_2025_fallback';
@@ -33,6 +34,11 @@ router.post('/login', async (req, res) => {
       const student = await Student.findOne({ parentUsername: user.username });
       if (student) {
         userData.studentId = student._id;
+      }
+    } else if (role === 'faculty') {
+      const faculty = await Faculty.findOne({ userId: user._id });
+      if (faculty) {
+        userData.subject = faculty.subject;
       }
     }
 

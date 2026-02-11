@@ -61,6 +61,14 @@ export const studentData = {
     await resultAPI.create({ studentId, ...resultData });
   },
 
+  deleteResult: async (studentId, resultId) => {
+    await resultAPI.delete(studentId, resultId);
+  },
+
+  deleteAttendance: async (studentId, attendanceId) => {
+    await attendanceAPI.delete(studentId, attendanceId);
+  },
+
   getFaculties: async () => {
     try {
       const { data } = await facultyAPI.getAll();
