@@ -16,7 +16,16 @@ const app = express();
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://YOUR-FRONTEND-URL.onrender.com"
+    ],
+    credentials: true
+  })
+);
+
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
@@ -32,21 +41,8 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running', db: 'MongoDB' });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-  const os = require('os');
-  const networkInterfaces = os.networkInterfaces();
-  let localIP = 'localhost';
+const PORT = process.env.PORT || 10000;
 
-  Object.keys(networkInterfaces).forEach((iface) => {
-    networkInterfaces[iface].forEach((details) => {
-      if (details.family === 'IPv4' && !details.internal) {
-        localIP = details.address;
-      }
-    });
-  });
-
+app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 Local Network: http://${localIP}:${PORT}/api`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
