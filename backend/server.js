@@ -1,46 +1,69 @@
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const connectDB = require('./config/db');
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const connectDB = require("./config/db");
+require("dotenv").config();
 
-const authRoutes = require('./routes/auth');
-const studentRoutes = require('./routes/students');
-const facultyRoutes = require('./routes/faculties');
-const attendanceRoutes = require('./routes/attendance');
-const resultRoutes = require('./routes/results');
+const authRoutes = require("./routes/auth");
+const studentRoutes = require("./routes/students");
+const facultyRoutes = require("./routes/faculties");
+const attendanceRoutes = require("./routes/attendance");
+const resultRoutes = require("./routes/results");
 
 const app = express();
 
-// Connect to MongoDB
+/* =========================
+   DATABASE
+========================= */
 connectDB();
 
-// Middleware
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+/* =========================
+   CORS (FIXED FOR RENDER)
+========================= */
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://student-academic-management-portal-1.onrender.com"
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  })
+);
 
+// 🔥 REQUIRED FOR PREFLIGHT
+app.options("*", cors());
 
+/* =========================
+   BODY PARSER
+========================= */
+app.use(bodyParser.json({ limit: "10mb" }));
+app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
+/* =========================
+   ROUTES
+========================= */
+app.use("/api/auth", authRoutes);
+app.use("/api/students", studentRoutes);
+app.use("/api/faculties", facultyRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/results", resultRoutes);
 
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/students', studentRoutes);
-app.use('/api/faculties', facultyRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/results', resultRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running', db: 'MongoDB' });
+/* =========================
+   HEALTH CHECK
+========================= */
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "OK",
+    message: "Server is running",
+    environment: process.env.NODE_ENV || "production"
+  });
 });
 
+/* =========================
+   SERVER
+========================= */
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
