@@ -1,53 +1,36 @@
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 const bcrypt = require('bcryptjs');
-const path = require('path');
 const User = require('./models/User');
-const Student = require('./models/Student');
+require('dotenv').config();
 
-dotenv.config({ path: path.join(__dirname, '.env') });
-
-const diagnose = async () => {
+const testLogin = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
-        console.log('Connected to MongoDB');
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log('✅ Connected to MongoDB');
 
-        // 1. Get a student
-        const student = await Student.findOne();
-        if (!student) {
-            console.log('No students found.');
-            return;
-        }
+        const username = 'admin';
+        const password = 'admin123';
+        const role = 'admin';
 
-        console.log(`Checking Student: ${student.name} (${student.rollNo})`);
-        console.log(`Student.username: ${student.username}`);
-        console.log(`Student.password (plain): ${student.password}`);
-
-        // 2. Find User
-        const user = await User.findOne({ username: student.username, role: 'student' });
+        const user = await User.findOne({ username, role });
         if (!user) {
-            console.error('❌ User NOT found for this student!');
+            console.log('❌ User not found with username="admin" and role="admin"');
             return;
         }
-        console.log(`User found. ID: ${user._id}`);
-        console.log(`User.password (hash): ${user.password}`);
 
-        // 3. Compare
-        const isMatch = await bcrypt.compare(student.password, user.password);
-        console.log(`bcrypt.compare result: ${isMatch}`);
-
-        if (isMatch) {
-            console.log('✅ Credential check PASSED.');
+        console.log('✅ User found. Comparing password...');
+        const isValid = await bcrypt.compare(password, user.password);
+        if (isValid) {
+            console.log('✅ Password is CORRECT (bcrypt matches admin123)');
         } else {
-            console.error('❌ Credential check FAILED.');
+            console.log('❌ Password is INCORRECT (bcrypt does NOT match admin123)');
+            console.log('Stored hash:', user.password);
         }
 
-    } catch (err) {
-        console.error(err);
-    } finally {
-        await mongoose.disconnect();
-        process.exit(0);
+        await mongoose.connection.close();
+    } catch (error) {
+        console.error('❌ Error:', error.message);
     }
 };
 
-diagnose();
+testLogin();
