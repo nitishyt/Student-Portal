@@ -10,10 +10,10 @@ const FacultyDashboard = () => {
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [attendanceStatus, setAttendanceStatus] = useState('present');
   const [attendanceTime, setAttendanceTime] = useState('');
-  const [attendanceSubject, setAttendanceSubject] = useState(JSON.parse(localStorage.getItem('user') || '{}').subject || '');
-  const [subject, setSubject] = useState(JSON.parse(localStorage.getItem('user') || '{}').subject || '');
+  const [attendanceSubject, setAttendanceSubject] = useState(JSON.parse(sessionStorage.getItem('user') || '{}').subject || '');
+  const [subject, setSubject] = useState(JSON.parse(sessionStorage.getItem('user') || '{}').subject || '');
   const [marks, setMarks] = useState('');
-  const facultySubject = JSON.parse(localStorage.getItem('user') || '{}').subject;
+  const facultySubject = JSON.parse(sessionStorage.getItem('user') || '{}').subject;
   const [refresh, setRefresh] = useState(0);
   const [results, setResults] = useState([]);
   const [statsCache, setStatsCache] = useState({});

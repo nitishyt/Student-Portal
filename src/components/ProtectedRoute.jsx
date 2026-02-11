@@ -6,6 +6,9 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   const isAuthenticated = auth.isAuthenticated();
   const userType = auth.getUserType();
 
+  // Note: We are using sessionStorage which is tab-specific.
+  // This ensures that opening the app in a new tab will require a new login.
+
   // If not authenticated, redirect to login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
