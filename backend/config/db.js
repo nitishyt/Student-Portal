@@ -7,6 +7,9 @@ const connectDB = async () => {
     console.log('✅ MongoDB connected successfully');
   } catch (error) {
     console.error('❌ MongoDB connection failed:', error.message);
+    if (error.message.includes('Authentication failed')) {
+      console.error('👉 Tip: Check your database credentials in the .env file.');
+    }
     process.exit(1);
   }
 };
