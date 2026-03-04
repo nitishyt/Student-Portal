@@ -34,3 +34,11 @@ coverage/
 # Temporary folders
 tmp/
 temp/
+
+# Backend diagnostic/test scripts (contain default passwords)
+backend/test-fetch.js
+backend/run_login.js
+backend/resetAdmin.js
+backend/diagnose_*.js
+backend/fix_login.js
+backend/migrate_credentials_v2.js
