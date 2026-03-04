@@ -11,14 +11,19 @@ router.post(
     body('username')
       .trim()
       .isLength({ min: 3 })
-      .withMessage('Username must be at least 3 characters'),
+      .withMessage('Username must be at least 3 characters')
+      .matches(/^[a-zA-Z0-9_]+$/)
+      .withMessage('Username may only contain letters, numbers, and underscores'),
     body('email')
       .optional()
       .isEmail()
+      .normalizeEmail()
       .withMessage('Must be a valid email'),
     body('password')
-      .isLength({ min: 6 })
-      .withMessage('Password must be at least 6 characters')
+      .isLength({ min: 8 })
+      .withMessage('Password must be at least 8 characters')
+      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+      .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number')
   ],
   authController.register
 );

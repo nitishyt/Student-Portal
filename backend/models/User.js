@@ -17,7 +17,8 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters']
+    minlength: [8, 'Password must be at least 8 characters'],
+    select: false // Never return password unless explicitly selected
   },
   role: {
     type: String,
@@ -25,13 +26,27 @@ const userSchema = new mongoose.Schema({
     default: 'student',
     required: true
   },
+  // ─── Security: Token revocation ──────────────────────────────────
+  // Increment on logout / password change to invalidate all existing JWTs.
+  tokenVersion: { type: Number, default: 0 },
+  // ─── Security: Brute-force protection ────────────────────────────
+  failedLoginAttempts: { type: Number, default: 0 },
+  lockUntil: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 
-// Never return password in JSON responses
+// Virtual: is the account currently locked?
+userSchema.virtual('isLocked').get(function () {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
+});
+
+// Never return sensitive fields in JSON responses
 userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
+  delete obj.failedLoginAttempts;
+  delete obj.lockUntil;
+  delete obj.tokenVersion;
   return obj;
 };
 

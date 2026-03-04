@@ -2,6 +2,8 @@ const bcrypt = require('bcryptjs');
 const Faculty = require('../models/Faculty');
 const User = require('../models/User');
 
+const SALT_ROUNDS = 12;
+
 // ─── GET all faculties ───────────────────────────────────────────────
 exports.getAll = async (req, res) => {
   try {
@@ -22,7 +24,7 @@ exports.getAll = async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch faculties.' });
   }
 };
 
@@ -30,7 +32,16 @@ exports.getAll = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const { name, username, password, subject, email } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Input validation
+    if (!name || !username || !password || !subject || !email) {
+      return res.status(400).json({ error: 'All fields are required.' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     const user = new User({ username, password: hashedPassword, role: 'faculty' });
     await user.save();
@@ -47,7 +58,10 @@ exports.create = async (req, res) => {
       // Password is NOT returned
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error.code === 11000) {
+      return res.status(409).json({ error: 'Username or email already exists.' });
+    }
+    res.status(500).json({ error: 'Failed to create faculty.' });
   }
 };
 
@@ -65,7 +79,6 @@ exports.remove = async (req, res) => {
     await User.findByIdAndDelete(faculty.userId);
     res.json({ message: 'Faculty deleted successfully' });
   } catch (error) {
-    console.error('Faculty delete error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to delete faculty.' });
   }
 };

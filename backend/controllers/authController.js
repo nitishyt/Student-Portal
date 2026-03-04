@@ -5,6 +5,22 @@ const User = require('../models/User');
 const Student = require('../models/Student');
 const Faculty = require('../models/Faculty');
 
+// ─── Constants ───────────────────────────────────────────────────────
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCK_TIME_MS = 15 * 60 * 1000; // 15 minutes
+const SALT_ROUNDS = 12;
+const JWT_ALGORITHM = 'HS256';
+const JWT_EXPIRY = '1d';
+
+// ─── Helper: sign JWT with explicit algorithm + tokenVersion ─────────
+const signToken = (user) => {
+  const payload = { id: user._id, role: user.role, v: user.tokenVersion || 0 };
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    algorithm: JWT_ALGORITHM,
+    expiresIn: JWT_EXPIRY
+  });
+};
+
 // ─── Register (public) ──────────────────────────────────────────────
 // Frontend sends: { username, email, password }
 // Backend ALWAYS sets role = "student" — role is NEVER accepted from the client.
@@ -24,8 +40,7 @@ exports.register = async (req, res) => {
     }
 
     // Hash password
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Create user — role is always "student" by default
     const user = new User({
@@ -37,15 +52,14 @@ exports.register = async (req, res) => {
     await user.save();
 
     // Generate token
-    const payload = { id: user._id, role: user.role };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const token = signToken(user);
 
     res.status(201).json({
       token,
       user: { id: user._id, username: user.username, role: user.role }
     });
   } catch (error) {
-    console.error('Register error:', error);
+    console.error('Register error:', error.message);
     res.status(500).json({ error: 'Server error during registration' });
   }
 };
@@ -69,15 +83,40 @@ exports.login = async (req, res) => {
     const query = { username };
     if (role) query.role = role;
 
-    const user = await User.findOne(query).select('+password');
+    const user = await User.findOne(query).select('+password +failedLoginAttempts +lockUntil +tokenVersion');
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // ─── Account lockout check ───────────────────────────────────
+    if (user.lockUntil && user.lockUntil > Date.now()) {
+      const remainingMs = user.lockUntil - Date.now();
+      const remainingMin = Math.ceil(remainingMs / 60000);
+      return res.status(423).json({
+        error: `Account temporarily locked. Try again in ${remainingMin} minute(s).`
+      });
     }
 
     // bcrypt compare
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
+      // ─── Increment failed attempts ─────────────────────────────
+      const attempts = (user.failedLoginAttempts || 0) + 1;
+      const update = { failedLoginAttempts: attempts };
+      if (attempts >= MAX_FAILED_ATTEMPTS) {
+        update.lockUntil = new Date(Date.now() + LOCK_TIME_MS);
+        update.failedLoginAttempts = 0; // reset counter, lock takes over
+      }
+      await User.updateOne({ _id: user._id }, { $set: update });
+
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // ─── Successful login: reset failed attempts ─────────────────
+    if (user.failedLoginAttempts > 0 || user.lockUntil) {
+      await User.updateOne({ _id: user._id }, {
+        $set: { failedLoginAttempts: 0, lockUntil: null }
+      });
     }
 
     // Build user data (password is NEVER included)
@@ -95,13 +134,12 @@ exports.login = async (req, res) => {
       if (faculty) userData.subject = faculty.subject;
     }
 
-    // Create JWT — payload contains id + role (from DB, not from client)
-    const payload = { id: user._id, role: user.role };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+    // Create JWT — payload contains id + role + tokenVersion (from DB, not from client)
+    const token = signToken(user);
 
     res.json({ token, user: userData });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', error.message);
     res.status(500).json({ error: 'Server error during login' });
   }
 };

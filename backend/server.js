@@ -5,9 +5,16 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 // ─── Validate critical env vars ──────────────────────────────────────
 if (!process.env.JWT_SECRET) {
   console.error('❌ FATAL: JWT_SECRET is not set in environment variables.');
+  process.exit(1);
+}
+if (process.env.JWT_SECRET.length < 64) {
+  console.error('❌ FATAL: JWT_SECRET is too short. Use at least 64 characters.');
+  console.error('   Generate one with: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
   process.exit(1);
 }
 
@@ -22,8 +29,26 @@ const app = express();
 // ─── Connect to MongoDB ──────────────────────────────────────────────
 connectDB();
 
-// ─── Security: Helmet ────────────────────────────────────────────────
-app.use(helmet());
+// ─── Security: Helmet (with CSP + HSTS) ─────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: IS_PRODUCTION ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"]
+    }
+  } : false,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
 
 // ─── Security: Rate limiting ─────────────────────────────────────────
 const apiLimiter = rateLimit({
@@ -57,8 +82,12 @@ const corsOrigins = [...defaultCorsOrigins, ...envCorsOrigins];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin) return callback(null, true);
+    // In production, require an origin header to prevent null-origin bypasses.
+    // In dev, allow no-origin requests (curl, mobile apps, server-to-server).
+    if (!origin) {
+      if (IS_PRODUCTION) return callback(new Error('Origin header is required'));
+      return callback(null, true);
+    }
 
     const isAllowed = corsOrigins.some((allowedOrigin) => {
       if (allowedOrigin instanceof RegExp) return allowedOrigin.test(origin);
@@ -73,9 +102,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// ─── Body parsing ────────────────────────────────────────────────────
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// ─── Body parsing (reduced default; results route has its own higher limit) ─
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 // ─── Apply rate limiters ─────────────────────────────────────────────
 app.use('/api/auth', authLimiter);
@@ -93,9 +122,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// ─── Global error handler ────────────────────────────────────────────
+// ─── Global error handler (never leak internals) ────────────────────
 app.use((err, req, res, _next) => {
-  console.error('Unhandled error:', err);
+  console.error('Unhandled error:', err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
 

@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, isAdmin, authorize } = require('../middleware/auth');
+const { verifyToken, isAdmin, authorize, checkStudentOwnership } = require('../middleware/auth');
 const studentController = require('../controllers/studentController');
 
 // All student routes require authentication
 router.get('/', verifyToken, authorize('admin', 'faculty'), studentController.getAll);
-router.get('/:id', verifyToken, studentController.getById);
+router.get('/:id', verifyToken, studentController.getById); // IDOR check is inside controller
 router.post('/', verifyToken, isAdmin, studentController.create);
 router.delete('/:id', verifyToken, isAdmin, studentController.remove);
 

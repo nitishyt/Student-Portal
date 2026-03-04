@@ -155,7 +155,7 @@ const FacultyDashboard = () => {
     try {
       setLoading(true);
       const newStudent = await studentData.addStudent(studentForm);
-      alert(`Student added!\n\nStudent Login:\nUsername: ${newStudent.username}\nPassword: ${newStudent.password}\n\nParent Login:\nUsername: ${newStudent.parentUsername}\nPassword: ${newStudent.parentPassword}`);
+      alert(`Student added!\n\nStudent Login:\nUsername: ${newStudent.username}\nPassword: ${newStudent._oneTimePassword || '(shown once — save it now)'}\n\nParent Login:\nUsername: ${newStudent.parentUsername}\nPassword: ${newStudent._oneTimeParentPassword || '(shown once — save it now)'}\n\n⚠️ These passwords are shown only once. Please save them now.`);
       setStudentForm({ name: '', rollNo: '', branch: '', standard: '', phone: '' });
       await loadStudents();
     } catch (error) {
