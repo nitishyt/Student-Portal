@@ -1,26 +1,25 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const Faculty = require('../models/Faculty');
 const User = require('../models/User');
 
 const SALT_ROUNDS = 12;
+const generateSecurePassword = () => crypto.randomBytes(10).toString('base64url');
 
 // ─── GET all faculties ───────────────────────────────────────────────
 exports.getAll = async (req, res) => {
   try {
     const faculties = await Faculty.find();
+    const isAdmin = req.user && req.user.role === 'admin';
 
-    const result = await Promise.all(
-      faculties.map(async (f) => {
-        const obj = f.toObject();
-        if (!obj.username) {
-          const user = await User.findById(obj.userId);
-          if (user) obj.username = user.username;
-        }
-        // NEVER return plain-text passwords
-        delete obj.password;
-        return obj;
-      })
-    );
+    const result = faculties.map((f) => {
+      const obj = f.toObject();
+      delete obj.password;
+      if (!isAdmin) {
+        delete obj.username;
+      }
+      return obj;
+    });
 
     res.json(result);
   } catch (error) {
@@ -31,37 +30,70 @@ exports.getAll = async (req, res) => {
 // ─── CREATE faculty ──────────────────────────────────────────────────
 exports.create = async (req, res) => {
   try {
-    const { name, username, password, subject, email } = req.body;
+    const { name, username, subject, email } = req.body;
 
-    // Input validation
-    if (!name || !username || !password || !subject || !email) {
-      return res.status(400).json({ error: 'All fields are required.' });
+    if (!name || !username || !subject || !email) {
+      return res.status(400).json({ error: 'Name, username, subject, and email are required.' });
     }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (!/^[a-zA-Z0-9_]{3,50}$/.test(username)) {
+      return res.status(400).json({ error: 'Username must be 3-50 alphanumeric characters or underscores.' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    // Generate secure random password — admin cannot choose it
+    const rawPassword = generateSecurePassword();
+    const hashedPassword = await bcrypt.hash(rawPassword, SALT_ROUNDS);
 
-    const user = new User({ username, password: hashedPassword, role: 'faculty' });
+    const user = new User({
+      username,
+      password: hashedPassword,
+      role: 'faculty',
+      mustChangePassword: true
+    });
     await user.save();
 
     const faculty = new Faculty({ userId: user._id, name, username, subject, email });
     await faculty.save();
 
+    // Return one-time password so admin can share it
     res.status(201).json({
       id: faculty._id,
       name,
       username,
       subject,
-      email
-      // Password is NOT returned
+      email,
+      _oneTimePassword: rawPassword
     });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({ error: 'Username or email already exists.' });
     }
     res.status(500).json({ error: 'Failed to create faculty.' });
+  }
+};
+
+// ─── RESET faculty password ──────────────────────────────────────────
+exports.resetPassword = async (req, res) => {
+  try {
+    const facultyId = req.params.id;
+    if (!facultyId || !facultyId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ error: 'Invalid faculty ID' });
+    }
+
+    const faculty = await Faculty.findById(facultyId);
+    if (!faculty) return res.status(404).json({ error: 'Faculty not found' });
+
+    const user = await User.findOne({ username: faculty.username });
+    if (!user) return res.status(404).json({ error: 'Faculty user account not found.' });
+
+    const newRawPassword = generateSecurePassword();
+    const newHashedPassword = await bcrypt.hash(newRawPassword, SALT_ROUNDS);
+    user.password = newHashedPassword;
+    user.mustChangePassword = true;
+    await user.save();
+
+    res.json({ username: faculty.username, newPassword: newRawPassword });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reset password.' });
   }
 };
 

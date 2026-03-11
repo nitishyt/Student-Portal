@@ -27,7 +27,6 @@ exports.getByStudent = async (req, res) => {
     const attendance = await Attendance.find(filter).sort({ date: -1 });
     res.json(attendance);
   } catch (error) {
-    console.error('Attendance error:', error.message);
     res.status(500).json({ error: 'Failed to fetch attendance.' });
   }
 };

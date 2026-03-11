@@ -6,7 +6,8 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Username is required'],
     unique: true,
     trim: true,
-    minlength: [3, 'Username must be at least 3 characters']
+    minlength: [3, 'Username must be at least 3 characters'],
+    maxlength: [50, 'Username must be at most 50 characters']
   },
   email: {
     type: String,
@@ -29,6 +30,10 @@ const userSchema = new mongoose.Schema({
   // ─── Security: Token revocation ──────────────────────────────────
   // Increment on logout / password change to invalidate all existing JWTs.
   tokenVersion: { type: Number, default: 0 },
+  // ─── Security: Refresh token (hashed, stored per-user) ──────────
+  refreshToken: { type: String, select: false, default: null },
+  // ─── Security: Force password change on first login ──────────────
+  mustChangePassword: { type: Boolean, default: false },
   // ─── Security: Brute-force protection ────────────────────────────
   failedLoginAttempts: { type: Number, default: 0 },
   lockUntil: { type: Date, default: null },
@@ -47,6 +52,8 @@ userSchema.methods.toJSON = function () {
   delete obj.failedLoginAttempts;
   delete obj.lockUntil;
   delete obj.tokenVersion;
+  delete obj.refreshToken;
+  delete obj.mustChangePassword;
   return obj;
 };
 

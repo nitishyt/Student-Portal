@@ -37,7 +37,6 @@ export const studentData = {
       });
       return flatAttendance;
     } catch (error) {
-      console.error('Error fetching attendance:', error);
       return [];
     }
   },
@@ -52,7 +51,6 @@ export const studentData = {
       const { data } = await resultAPI.getByStudent(studentId);
       return data || [];
     } catch (error) {
-      console.error('Error fetching results:', error);
       return [];
     }
   },
@@ -74,7 +72,6 @@ export const studentData = {
       const { data } = await facultyAPI.getAll();
       return data || [];
     } catch (error) {
-      console.error('Error fetching faculties:', error);
       return [];
     }
   },
@@ -86,5 +83,15 @@ export const studentData = {
 
   deleteFaculty: async (facultyId) => {
     await facultyAPI.delete(facultyId);
+  },
+
+  resetStudentPassword: async (studentId, target) => {
+    const { data } = await studentAPI.resetPassword(studentId, target);
+    return data;
+  },
+
+  resetFacultyPassword: async (facultyId) => {
+    const { data } = await facultyAPI.resetPassword(facultyId);
+    return data;
   }
 };

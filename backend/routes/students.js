@@ -7,6 +7,7 @@ const studentController = require('../controllers/studentController');
 router.get('/', verifyToken, authorize('admin', 'faculty'), studentController.getAll);
 router.get('/:id', verifyToken, studentController.getById); // IDOR check is inside controller
 router.post('/', verifyToken, isAdmin, studentController.create);
+router.post('/:id/reset-password', verifyToken, isAdmin, studentController.resetPassword);
 router.delete('/:id', verifyToken, isAdmin, studentController.remove);
 
 module.exports = router;

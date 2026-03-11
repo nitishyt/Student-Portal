@@ -59,7 +59,6 @@ const FacultyDashboard = () => {
 
       setClassAttendanceData(attendanceMap);
     } catch (e) {
-      console.error('Error fetching class attendance:', e);
       setClassAttendanceData({});
     }
   };
@@ -120,7 +119,6 @@ const FacultyDashboard = () => {
       }
       return { total: workingDays, present, percentage: workingDays ? ((present / workingDays) * 100).toFixed(1) : 0 };
     } catch (e) {
-      console.error(e);
       return { total: 0, present: 0, percentage: 0 };
     }
   };
@@ -137,8 +135,8 @@ const FacultyDashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    auth.logout();
+  const handleLogout = async () => {
+    await auth.logout();
     navigate('/login');
   };
 
@@ -209,7 +207,6 @@ const FacultyDashboard = () => {
       const data = await studentData.getResults(studentId);
       setResults(data || []);
     } catch (error) {
-      console.error('Error loading results:', error);
       setResults([]);
     }
   };
@@ -246,7 +243,6 @@ const FacultyDashboard = () => {
               await loadResultsForStudent(studentId);
               alert('Result added successfully!');
             } catch (err) {
-              console.error(err);
               alert('Failed to add result: ' + (err.response?.data?.error || err.message));
             }
           };
@@ -259,7 +255,6 @@ const FacultyDashboard = () => {
           alert('Result added successfully!');
         }
       } catch (err) {
-        console.error(err);
         alert('Failed to add result: ' + (err.response?.data?.error || err.message));
       }
     }
@@ -392,8 +387,6 @@ const FacultyDashboard = () => {
                             <p>Branch: {student.branch} | Standard: {student.standard}</p>
                             <p>Phone: {student.phone}</p>
                             <p><strong>Attendance:</strong> {stats.percentage}% ({stats.present}/{stats.total})</p>
-                            <p><strong>Student Login:</strong> {student.username} / {student.password}</p>
-                            <p><strong>Parent Login:</strong> {student.parentUsername} / {student.parentPassword}</p>
                             <button onClick={() => deleteStudent(student._id || student.id)} style={{ background: '#f44336', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer', marginTop: '10px' }}>Delete</button>
                           </div>
                         );

@@ -1,40 +1,86 @@
 import axios from 'axios';
 
-const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const envBaseURL = import.meta?.env?.VITE_API_URL;
-const baseURL = envBaseURL || (isLocalHost ? 'http://localhost:5000/api' : 'https://student-portal-flu2.onrender.com/api');
+// ─── Access token stored in memory only (never in storage) ──────────
+let accessToken = null;
+
+export const setAccessToken = (token) => { accessToken = token; };
+export const getAccessToken = () => accessToken;
+export const clearAccessToken = () => { accessToken = null; };
+
+// ─── Base URL ────────────────────────────────────────────────────────
+const baseURL = import.meta.env.VITE_API_URL;
+if (!baseURL) {
+  throw new Error('VITE_API_URL is not set. Check your .env.development or .env.production file.');
+}
 
 const api = axios.create({
   baseURL,
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  withCredentials: true
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true // needed for httpOnly refresh cookie
 });
 
+// ─── Request interceptor: attach access token ───────────────────────
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
 });
 
-// Response interceptor to handle session expiration or unauthorized access
+// ─── Response interceptor: auto-refresh on 401 TOKEN_EXPIRED ────────
+let refreshPromise = null;
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      // Clear session storage and redirect to login
-      sessionStorage.removeItem('token');
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Only attempt refresh once per request, and only for TOKEN_EXPIRED
+    if (
+      error.response?.status === 401 &&
+      error.response?.data?.code === 'TOKEN_EXPIRED' &&
+      !originalRequest._retry
+    ) {
+      originalRequest._retry = true;
+
+      // Deduplicate concurrent refresh calls
+      if (!refreshPromise) {
+        refreshPromise = axios
+          .post(`${baseURL}/auth/refresh`, {}, { withCredentials: true })
+          .then((res) => {
+            const newToken = res.data.token;
+            setAccessToken(newToken);
+            return newToken;
+          })
+          .catch((refreshErr) => {
+            clearAccessToken();
+            sessionStorage.removeItem('user');
+            sessionStorage.removeItem('userType');
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login';
+            }
+            return Promise.reject(refreshErr);
+          })
+          .finally(() => {
+            refreshPromise = null;
+          });
+      }
+
+      const newToken = await refreshPromise;
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      return api(originalRequest);
+    }
+
+    // For non-TOKEN_EXPIRED 401s (e.g. invalid credentials), redirect
+    if (error.response?.status === 401) {
+      clearAccessToken();
       sessionStorage.removeItem('user');
       sessionStorage.removeItem('userType');
-
-      // Force redirect to login page if we're not already there
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -44,20 +90,26 @@ export const authAPI = {
     api.post('/auth/login', { username, password, role }),
   register: (username, email, password) =>
     api.post('/auth/register', { username, email, password }),
-  verify: () => api.get('/auth/verify')
+  verify: () => api.get('/auth/verify'),
+  refresh: () => api.post('/auth/refresh'),
+  logout: () => api.post('/auth/logout'),
+  changePassword: (currentPassword, newPassword) =>
+    api.post('/auth/change-password', { currentPassword, newPassword })
 };
 
 export const studentAPI = {
   getAll: (params) => api.get('/students', { params }),
   getById: (id) => api.get(`/students/${id}`),
   create: (data) => api.post('/students', data),
-  delete: (id) => api.delete(`/students/${id}`)
+  delete: (id) => api.delete(`/students/${id}`),
+  resetPassword: (id, target) => api.post(`/students/${id}/reset-password`, { target })
 };
 
 export const facultyAPI = {
   getAll: () => api.get('/faculties'),
   create: (data) => api.post('/faculties', data),
-  delete: (id) => api.delete(`/faculties/${id}`)
+  delete: (id) => api.delete(`/faculties/${id}`),
+  resetPassword: (id) => api.post(`/faculties/${id}/reset-password`)
 };
 
 export const attendanceAPI = {

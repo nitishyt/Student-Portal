@@ -20,20 +20,18 @@ exports.getAll = async (req, res) => {
 
     const students = await Student.find(filter).sort({ rollNo: 1 });
 
+    const isAdmin = req.user && req.user.role === 'admin';
     const studentsWithCreds = students.map((s) => {
       const obj = s.toObject();
       obj.id = obj._id;
-      if (!obj.username) {
-        const firstName = obj.name.split(' ')[0].toLowerCase();
-        obj.username = firstName + obj.rollNo.toString().toLowerCase();
-      }
-      if (!obj.parentUsername) {
-        const firstName = obj.name.split(' ')[0].toLowerCase();
-        obj.parentUsername = 'p' + firstName + obj.rollNo.toString().toLowerCase();
-      }
       // NEVER return plain-text passwords
       delete obj.password;
       delete obj.parentPassword;
+      // Only admin sees usernames
+      if (!isAdmin) {
+        delete obj.username;
+        delete obj.parentUsername;
+      }
       return obj;
     });
 
@@ -108,12 +106,12 @@ exports.create = async (req, res) => {
     const parentHashedPassword = await bcrypt.hash(parentRawPassword, SALT_ROUNDS);
 
     // Create student user account
-    const user = new User({ username, password: studentHashedPassword, role: 'student' });
+    const user = new User({ username, password: studentHashedPassword, role: 'student', mustChangePassword: true });
     await user.save();
 
     // Create parent user account
     const parentUsername = 'p' + username;
-    const parentUser = new User({ username: parentUsername, password: parentHashedPassword, role: 'parent' });
+    const parentUser = new User({ username: parentUsername, password: parentHashedPassword, role: 'parent', mustChangePassword: true });
     await parentUser.save();
 
     const student = new Student({
@@ -148,6 +146,37 @@ exports.create = async (req, res) => {
       return res.status(409).json({ error: 'A student with this roll number or username already exists.' });
     }
     res.status(500).json({ error: 'Failed to create student.' });
+  }
+};
+
+// ─── RESET student password ──────────────────────────────────────────
+exports.resetPassword = async (req, res) => {
+  try {
+    const studentId = req.params.id;
+    const { target } = req.body; // 'student' or 'parent'
+    if (!studentId || !studentId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ error: 'Invalid student ID.' });
+    }
+    if (!['student', 'parent'].includes(target)) {
+      return res.status(400).json({ error: 'Target must be "student" or "parent".' });
+    }
+
+    const student = await Student.findById(studentId);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const username = target === 'student' ? student.username : student.parentUsername;
+    const user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ error: `${target} user account not found.` });
+
+    const newRawPassword = generateSecurePassword();
+    const newHashedPassword = await bcrypt.hash(newRawPassword, SALT_ROUNDS);
+    user.password = newHashedPassword;
+    user.mustChangePassword = true;
+    await user.save();
+
+    res.json({ username, newPassword: newRawPassword });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reset password.' });
   }
 };
 

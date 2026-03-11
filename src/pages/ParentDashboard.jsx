@@ -34,8 +34,8 @@ const ParentDashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    auth.logout();
+  const handleLogout = async () => {
+    await auth.logout();
     navigate('/login');
   };
 

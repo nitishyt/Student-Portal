@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Student = require('../models/Student');
 
+const JWT_ALGORITHM = 'HS256';
+
 // ─── verifyToken ─────────────────────────────────────────────────────
 // Extracts Bearer token from Authorization header, verifies it with
 // explicit algorithm, checks tokenVersion for revocation, and attaches
@@ -15,12 +17,12 @@ const verifyToken = async (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
-      algorithms: ['HS256'] // Prevent algorithm confusion attacks
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET, {
+      algorithms: [JWT_ALGORITHM]
     });
 
     // ─── Token revocation check ────────────────────────────────────
-    const user = await User.findById(decoded.id).select('tokenVersion role');
+    const user = await User.findById(decoded.id).select('tokenVersion role mustChangePassword');
     if (!user) {
       return res.status(401).json({ error: 'User no longer exists.' });
     }
@@ -28,15 +30,17 @@ const verifyToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Token has been revoked. Please log in again.' });
     }
 
-    req.user = { id: decoded.id, role: user.role }; // Always use role from DB
+    req.user = { id: decoded.id, role: user.role, mustChangePassword: user.mustChangePassword };
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired token.' });
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expired.', code: 'TOKEN_EXPIRED' });
+    }
+    return res.status(401).json({ error: 'Invalid token.' });
   }
 };
 
 // ─── isAdmin ─────────────────────────────────────────────────────────
-// Must be used AFTER verifyToken.
 const isAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required.' });

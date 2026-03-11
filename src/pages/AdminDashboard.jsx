@@ -13,12 +13,13 @@ const AdminDashboard = () => {
   const [filterBranch, setFilterBranch] = useState('');
   const [filterStandard, setFilterStandard] = useState('');
   const [loading, setLoading] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState([]);
 
   const [studentForm, setStudentForm] = useState({
     name: '', rollNo: '', branch: '', standard: '', phone: ''
   });
   const [facultyForm, setFacultyForm] = useState({
-    name: '', username: '', password: '', subject: '', email: ''
+    name: '', username: '', subject: '', email: ''
   });
   const [resultForm, setResultForm] = useState({ subject: '', marks: '' });
 
@@ -26,11 +27,9 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     // Verify user is authenticated before loading data
-    const token = sessionStorage.getItem('token');
     const user = sessionStorage.getItem('user');
     
-    if (!token || !user) {
-      // User not authenticated, redirect to login
+    if (!user) {
       navigate('/login');
       return;
     }
@@ -42,13 +41,10 @@ const AdminDashboard = () => {
   const loadStudents = async () => {
     try {
       setLoading(true);
-      console.log('Fetching students...');
       const data = await studentData.getStudents();
-      console.log('Students loaded:', data);
       setStudents(data);
     } catch (error) {
-      console.error('Error loading students:', error);
-      alert('Error loading students: ' + error.message);
+      alert('Error loading students');
     } finally {
       setLoading(false);
     }
@@ -57,20 +53,47 @@ const AdminDashboard = () => {
   const loadFaculties = async () => {
     try {
       setLoading(true);
-      console.log('Fetching faculties...');
       const data = await studentData.getFaculties?.() || [];
-      console.log('Faculties loaded:', data);
       setFaculties(data);
     } catch (error) {
-      console.error('Error loading faculties:', error);
+      // silently fail
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    auth.logout();
+  const handleLogout = async () => {
+    await auth.logout();
     navigate('/login');
+  };
+
+  const addGeneratedCredential = (entry) => {
+    setGeneratedCredentials((prev) => [
+      {
+        ...entry,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: new Date().toLocaleString()
+      },
+      ...prev
+    ]);
+  };
+
+  const copyCredential = async (entry) => {
+    const text = [
+      `Type: ${entry.type}`,
+      `Name: ${entry.name}`,
+      `Username: ${entry.username}`,
+      `Password: ${entry.password}`,
+      entry.parentUsername ? `Parent Username: ${entry.parentUsername}` : null,
+      entry.parentPassword ? `Parent Password: ${entry.parentPassword}` : null
+    ].filter(Boolean).join('\n');
+
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Credentials copied to clipboard');
+    } catch (error) {
+      alert('Could not copy credentials automatically. Please copy manually.');
+    }
   };
 
   const addStudent = async (e) => {
@@ -86,6 +109,14 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       const newStudent = await studentData.addStudent(studentForm);
+      addGeneratedCredential({
+        type: 'Student',
+        name: newStudent.name,
+        username: newStudent.username,
+        password: newStudent._oneTimePassword || '(not returned)',
+        parentUsername: newStudent.parentUsername,
+        parentPassword: newStudent._oneTimeParentPassword || '(not returned)'
+      });
       alert(`Student added!\n\nStudent Login:\nUsername: ${newStudent.username}\nPassword: ${newStudent._oneTimePassword || '(shown once — save it now)'}\n\nParent Login:\nUsername: ${newStudent.parentUsername}\nPassword: ${newStudent._oneTimeParentPassword || '(shown once — save it now)'}\n\n⚠️ These passwords are shown only once. Please save them now.`);
       setStudentForm({ name: '', rollNo: '', branch: '', standard: '', phone: '' });
       await loadStudents();
@@ -110,18 +141,66 @@ const AdminDashboard = () => {
     }
   };
 
+  const resetStudentPassword = async (studentId, studentName, target) => {
+    const label = target === 'student' ? 'Student' : 'Parent';
+    if (!window.confirm(`Reset ${label} password for ${studentName}?`)) return;
+    try {
+      setLoading(true);
+      const result = await studentData.resetStudentPassword(studentId, target);
+      addGeneratedCredential({
+        type: `${label} (Reset)`,
+        name: studentName,
+        username: result.username,
+        password: result.newPassword
+      });
+      alert(`${label} password reset!\n\nUsername: ${result.username}\nNew Password: ${result.newPassword}\n\n⚠️ This password is shown only once. Save it now.`);
+    } catch (error) {
+      alert('Error resetting password: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetFacultyPassword = async (facultyId, facultyName) => {
+    if (!window.confirm(`Reset password for faculty ${facultyName}?`)) return;
+    try {
+      setLoading(true);
+      const result = await studentData.resetFacultyPassword(facultyId);
+      addGeneratedCredential({
+        type: 'Faculty (Reset)',
+        name: facultyName,
+        username: result.username,
+        password: result.newPassword
+      });
+      alert(`Faculty password reset!\n\nUsername: ${result.username}\nNew Password: ${result.newPassword}\n\n⚠️ This password is shown only once. Save it now.`);
+    } catch (error) {
+      alert('Error resetting password: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const addFaculty = async (e) => {
     e.preventDefault();
-    if (!facultyForm.name || !facultyForm.username || !facultyForm.password || !facultyForm.subject || !facultyForm.email) {
+    if (!facultyForm.name || !facultyForm.username || !facultyForm.subject || !facultyForm.email) {
       alert('All fields are required');
       return;
     }
     try {
       setLoading(true);
-      await studentData.addFaculty(facultyForm);
-      setFacultyForm({ name: '', username: '', password: '', subject: '', email: '' });
+      const newFaculty = await studentData.addFaculty(facultyForm);
+      addGeneratedCredential({
+        type: 'Faculty',
+        name: newFaculty.name,
+        username: newFaculty.username,
+        password: newFaculty._oneTimePassword || '(not returned)'
+      });
+      const msg = newFaculty._oneTimePassword
+        ? `Faculty added!\n\nUsername: ${newFaculty.username}\nPassword: ${newFaculty._oneTimePassword}\n\nThis password is shown only once. Please save it now.`
+        : 'Faculty added successfully!';
+      setFacultyForm({ name: '', username: '', subject: '', email: '' });
       await loadFaculties();
-      alert('Faculty added successfully!');
+      alert(msg);
     } catch (error) {
       alert('Error adding faculty: ' + error.message);
     } finally {
@@ -215,6 +294,29 @@ const AdminDashboard = () => {
       </div>
 
       <div className="content">
+        {generatedCredentials.length > 0 && (
+          <div className="info-card" style={{ marginBottom: '20px' }}>
+            <h3>Recently Generated Credentials</h3>
+            <p style={{ marginTop: 0, color: '#666' }}>Visible only in this session. Save them before refreshing the page.</p>
+            {generatedCredentials.map((cred) => (
+              <div key={cred.id} className="student-card" style={{ marginBottom: '10px' }}>
+                <p><strong>{cred.type}</strong> | {cred.name}</p>
+                <p><strong>Username:</strong> {cred.username}</p>
+                <p><strong>Password:</strong> {cred.password}</p>
+                {cred.parentUsername && <p><strong>Parent Username:</strong> {cred.parentUsername}</p>}
+                {cred.parentPassword && <p><strong>Parent Password:</strong> {cred.parentPassword}</p>}
+                <p><strong>Generated:</strong> {cred.createdAt}</p>
+                <button
+                  onClick={() => copyCredential(cred)}
+                  style={{ background: '#2196f3', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer', marginTop: '5px' }}
+                >
+                  Copy Credentials
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {activeSection === 'students' && (
           <div>
             <h2>Student Management</h2>
@@ -272,9 +374,13 @@ const AdminDashboard = () => {
                   <div key={student._id || student.id} className="student-card">
                     <h4>{student.name} ({student.rollNo})</h4>
                     <p>Branch: {student.branch} | Standard: {student.standard} | Phone: {student.phone}</p>
-                    <p><strong>Student Login:</strong> Username: {student.username} | Password: {student.password}</p>
-                    <p><strong>Parent Login:</strong> Username: {student.parentUsername} | Password: {student.parentPassword}</p>
-                    <button onClick={() => deleteStudent(student._id || student.id)} style={{ background: '#f44336', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer', marginTop: '10px' }}>Delete</button>
+                    <p><strong>Username:</strong> {student.username || 'N/A'}</p>
+                    <p><strong>Parent Username:</strong> {student.parentUsername || 'N/A'}</p>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                      <button onClick={() => resetStudentPassword(student._id || student.id, student.name, 'student')} style={{ background: '#2196f3', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Reset Student Password</button>
+                      <button onClick={() => resetStudentPassword(student._id || student.id, student.name, 'parent')} style={{ background: '#ff9800', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Reset Parent Password</button>
+                      <button onClick={() => deleteStudent(student._id || student.id)} style={{ background: '#f44336', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Delete</button>
+                    </div>
                   </div>
                 ));
               })()}
@@ -291,7 +397,6 @@ const AdminDashboard = () => {
               <form onSubmit={addFaculty}>
                 <input type="text" value={facultyForm.name} onChange={(e) => setFacultyForm({ ...facultyForm, name: e.target.value })} placeholder="Faculty Name" required />
                 <input type="text" value={facultyForm.username} onChange={(e) => setFacultyForm({ ...facultyForm, username: e.target.value })} placeholder="Username" required />
-                <input type="password" value={facultyForm.password} onChange={(e) => setFacultyForm({ ...facultyForm, password: e.target.value })} placeholder="Password" required />
                 <input type="text" value={facultyForm.subject} onChange={(e) => setFacultyForm({ ...facultyForm, subject: e.target.value })} placeholder="Subject" required />
                 <input type="email" value={facultyForm.email} onChange={(e) => setFacultyForm({ ...facultyForm, email: e.target.value })} placeholder="Email" required />
                 <button type="submit" className="btn">Add Faculty</button>
@@ -302,8 +407,11 @@ const AdminDashboard = () => {
                 <div key={faculty._id || faculty.id} className="student-card">
                   <h4>{faculty.name}</h4>
                   <p>Subject: {faculty.subject} | Email: {faculty.email}</p>
-                  <p><strong>Login:</strong> Username: {faculty.username} | Password: {faculty.password}</p>
-                  <button onClick={() => deleteFaculty(faculty._id || faculty.id)} style={{ background: '#f44336', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer', marginTop: '10px' }}>Delete</button>
+                  <p><strong>Username:</strong> {faculty.username || 'N/A'}</p>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                    <button onClick={() => resetFacultyPassword(faculty._id || faculty.id, faculty.name)} style={{ background: '#2196f3', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Reset Password</button>
+                    <button onClick={() => deleteFaculty(faculty._id || faculty.id)} style={{ background: '#f44336', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Delete</button>
+                  </div>
                 </div>
               ))}
             </div>

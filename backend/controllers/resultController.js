@@ -12,7 +12,6 @@ exports.getByStudent = async (req, res) => {
     const results = await Result.find({ studentId }).sort({ createdAt: -1 });
     res.json(results);
   } catch (error) {
-    console.error('Results error:', error.message);
     res.status(500).json({ error: 'Failed to fetch results.' });
   }
 };
@@ -75,8 +74,15 @@ exports.remove = async (req, res) => {
       return res.status(400).json({ error: 'Invalid result ID.' });
     }
 
-    const result = await Result.findByIdAndDelete(resultId);
+    const result = await Result.findById(resultId);
     if (!result) return res.status(404).json({ error: 'Result not found' });
+
+    // Faculty can only delete results they uploaded; admin can delete any
+    if (req.user.role === 'faculty' && String(result.uploadedBy) !== String(req.user.id)) {
+      return res.status(403).json({ error: 'You can only delete results you uploaded.' });
+    }
+
+    await Result.findByIdAndDelete(resultId);
     res.json({ message: 'Result deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete result.' });

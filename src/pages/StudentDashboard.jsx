@@ -49,7 +49,6 @@ const StudentDashboard = () => {
 
       setAttendanceStats({ present, absent, total, percentage });
     } catch (error) {
-      console.error('Error calculating attendance:', error);
       setAttendanceStats({ present: 0, absent: 0, total: 0, percentage: 0 });
     }
   };
@@ -60,14 +59,13 @@ const StudentDashboard = () => {
       const studentResults = await studentData.getResults(currentStudentId);
       setResults(studentResults || []);
     } catch (error) {
-      console.error('Error loading results:', error);
       setResults([]);
     }
   };
 
   // Handle logout
-  const handleLogout = () => {
-    auth.logout();
+  const handleLogout = async () => {
+    await auth.logout();
     navigate('/login');
   };
 

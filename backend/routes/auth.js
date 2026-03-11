@@ -41,4 +41,26 @@ router.post(
 // ─── GET /api/auth/verify ────────────────────────────────────────────
 router.get('/verify', verifyToken, authController.verify);
 
+// ─── POST /api/auth/refresh ──────────────────────────────────────────
+// No auth middleware — relies on httpOnly cookie
+router.post('/refresh', authController.refresh);
+
+// ─── POST /api/auth/logout ───────────────────────────────────────────
+router.post('/logout', verifyToken, authController.logout);
+
+// ─── POST /api/auth/change-password ──────────────────────────────────
+router.post(
+  '/change-password',
+  verifyToken,
+  [
+    body('currentPassword').notEmpty().withMessage('Current password is required'),
+    body('newPassword')
+      .isLength({ min: 8 })
+      .withMessage('New password must be at least 8 characters')
+      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+      .withMessage('New password must contain at least one uppercase letter, one lowercase letter, and one number')
+  ],
+  authController.changePassword
+);
+
 module.exports = router;

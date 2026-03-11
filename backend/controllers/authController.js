@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
@@ -10,20 +11,55 @@ const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_TIME_MS = 15 * 60 * 1000; // 15 minutes
 const SALT_ROUNDS = 12;
 const JWT_ALGORITHM = 'HS256';
-const JWT_EXPIRY = '1d';
+const ACCESS_TOKEN_EXPIRY = '15m';
+const REFRESH_TOKEN_EXPIRY = '7d';
+const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 
-// ─── Helper: sign JWT with explicit algorithm + tokenVersion ─────────
-const signToken = (user) => {
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// ─── Helper: sign access token (short-lived) ────────────────────────
+const signAccessToken = (user) => {
   const payload = { id: user._id, role: user.role, v: user.tokenVersion || 0 };
-  return jwt.sign(payload, process.env.JWT_SECRET, {
+  return jwt.sign(payload, process.env.JWT_ACCESS_SECRET, {
     algorithm: JWT_ALGORITHM,
-    expiresIn: JWT_EXPIRY
+    expiresIn: ACCESS_TOKEN_EXPIRY
   });
 };
 
+// ─── Helper: sign refresh token (long-lived) ────────────────────────
+const signRefreshToken = (user) => {
+  const payload = { id: user._id, v: user.tokenVersion || 0 };
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
+    algorithm: JWT_ALGORITHM,
+    expiresIn: REFRESH_TOKEN_EXPIRY
+  });
+};
+
+// ─── Helper: set refresh token as httpOnly cookie ────────────────────
+const setRefreshCookie = (res, token) => {
+  res.cookie('refreshToken', token, {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: IS_PRODUCTION ? 'strict' : 'lax',
+    maxAge: REFRESH_COOKIE_MAX_AGE,
+    path: '/api/auth'
+  });
+};
+
+// ─── Helper: clear refresh cookie ───────────────────────────────────
+const clearRefreshCookie = (res) => {
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: IS_PRODUCTION ? 'strict' : 'lax',
+    path: '/api/auth'
+  });
+};
+
+// ─── Helper: hash a refresh token for DB storage ────────────────────
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
 // ─── Register (public) ──────────────────────────────────────────────
-// Frontend sends: { username, email, password }
-// Backend ALWAYS sets role = "student" — role is NEVER accepted from the client.
 exports.register = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -33,16 +69,13 @@ exports.register = async (req, res) => {
 
     const { username, email, password } = req.body;
 
-    // Check if user already exists
     const existingUser = await User.findOne({ username });
     if (existingUser) {
       return res.status(409).json({ error: 'Username already taken' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // Create user — role is always "student" by default
     const user = new User({
       username,
       email,
@@ -51,24 +84,24 @@ exports.register = async (req, res) => {
     });
     await user.save();
 
-    // Generate token
-    const token = signToken(user);
+    const accessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user);
+
+    // Store hashed refresh token in DB
+    await User.updateOne({ _id: user._id }, { $set: { refreshToken: hashToken(refreshToken) } });
+
+    setRefreshCookie(res, refreshToken);
 
     res.status(201).json({
-      token,
+      token: accessToken,
       user: { id: user._id, username: user.username, role: user.role }
     });
   } catch (error) {
-    console.error('Register error:', error.message);
     res.status(500).json({ error: 'Server error during registration' });
   }
 };
 
 // ─── Login ───────────────────────────────────────────────────────────
-// Frontend sends: { username, password }
-// Backend looks up user, compares password, returns JWT.
-// The "role" dropdown on the frontend is used ONLY for routing after login;
-// the actual role comes from the database.
 exports.login = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -78,13 +111,16 @@ exports.login = async (req, res) => {
 
     const { username, password, role } = req.body;
 
-    // If role is supplied we use it as a lookup hint (existing app behaviour)
-    // but the authoritative role is always what is stored in the DB.
-    const query = { username };
-    if (role) query.role = role;
-
-    const user = await User.findOne(query).select('+password +failedLoginAttempts +lockUntil +tokenVersion');
+    // Always query by username only to prevent enumeration via role hint
+    const user = await User.findOne({ username }).select(
+      '+password +failedLoginAttempts +lockUntil +tokenVersion +mustChangePassword'
+    );
     if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // If client sent a role hint and it doesn't match, still return same error
+    if (role && user.role !== role) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -97,18 +133,15 @@ exports.login = async (req, res) => {
       });
     }
 
-    // bcrypt compare
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      // ─── Increment failed attempts ─────────────────────────────
       const attempts = (user.failedLoginAttempts || 0) + 1;
       const update = { failedLoginAttempts: attempts };
       if (attempts >= MAX_FAILED_ATTEMPTS) {
         update.lockUntil = new Date(Date.now() + LOCK_TIME_MS);
-        update.failedLoginAttempts = 0; // reset counter, lock takes over
+        update.failedLoginAttempts = 0;
       }
       await User.updateOne({ _id: user._id }, { $set: update });
-
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -119,8 +152,12 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Build user data (password is NEVER included)
+    // Build user data
     let userData = { id: user._id, username: user.username, role: user.role };
+
+    if (user.mustChangePassword) {
+      userData.mustChangePassword = true;
+    }
 
     // Enrich with linked profile info
     if (user.role === 'student') {
@@ -134,13 +171,123 @@ exports.login = async (req, res) => {
       if (faculty) userData.subject = faculty.subject;
     }
 
-    // Create JWT — payload contains id + role + tokenVersion (from DB, not from client)
-    const token = signToken(user);
+    const accessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user);
 
-    res.json({ token, user: userData });
+    // Store hashed refresh token in DB
+    await User.updateOne({ _id: user._id }, { $set: { refreshToken: hashToken(refreshToken) } });
+
+    setRefreshCookie(res, refreshToken);
+
+    res.json({ token: accessToken, user: userData });
   } catch (error) {
-    console.error('Login error:', error.message);
     res.status(500).json({ error: 'Server error during login' });
+  }
+};
+
+// ─── Refresh access token ────────────────────────────────────────────
+exports.refresh = async (req, res) => {
+  try {
+    const token = req.cookies?.refreshToken;
+    if (!token) {
+      return res.status(401).json({ error: 'No refresh token provided.' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET, {
+        algorithms: [JWT_ALGORITHM]
+      });
+    } catch (err) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Invalid or expired refresh token.' });
+    }
+
+    const user = await User.findById(decoded.id).select('+refreshToken +tokenVersion');
+    if (!user) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'User no longer exists.' });
+    }
+
+    // Verify token version matches (revocation check)
+    if (typeof decoded.v === 'number' && decoded.v !== user.tokenVersion) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Token has been revoked.' });
+    }
+
+    // Verify stored hash matches the presented token
+    if (!user.refreshToken || user.refreshToken !== hashToken(token)) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Refresh token mismatch. Please log in again.' });
+    }
+
+    // Issue new tokens (rotate refresh token)
+    const newAccessToken = signAccessToken(user);
+    const newRefreshToken = signRefreshToken(user);
+
+    await User.updateOne({ _id: user._id }, { $set: { refreshToken: hashToken(newRefreshToken) } });
+
+    setRefreshCookie(res, newRefreshToken);
+
+    res.json({ token: newAccessToken });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error during token refresh' });
+  }
+};
+
+// ─── Logout ──────────────────────────────────────────────────────────
+exports.logout = async (req, res) => {
+  try {
+    // Increment tokenVersion to invalidate all existing JWTs for this user
+    await User.updateOne(
+      { _id: req.user.id },
+      { $inc: { tokenVersion: 1 }, $set: { refreshToken: null } }
+    );
+
+    clearRefreshCookie(res);
+
+    res.json({ message: 'Logged out successfully.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error during logout' });
+  }
+};
+
+// ─── Change password ─────────────────────────────────────────────────
+exports.changePassword = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user.id).select('+password +tokenVersion');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+    // Update password, clear mustChangePassword flag, increment tokenVersion to revoke old tokens
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: { password: hashedPassword, mustChangePassword: false, refreshToken: null },
+        $inc: { tokenVersion: 1 }
+      }
+    );
+
+    clearRefreshCookie(res);
+
+    res.json({ message: 'Password changed successfully. Please log in again.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error during password change' });
   }
 };
 
@@ -150,10 +297,21 @@ exports.verify = async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(401).json({ valid: false, error: 'User not found' });
 
-    res.json({
-      valid: true,
-      user: { id: user._id, username: user.username, role: user.role }
-    });
+    const userData = { id: user._id, username: user.username, role: user.role };
+
+    // Enrich with linked profile info
+    if (user.role === 'student') {
+      const student = await Student.findOne({ userId: user._id });
+      if (student) userData.studentId = student._id;
+    } else if (user.role === 'parent') {
+      const student = await Student.findOne({ parentUsername: user.username });
+      if (student) userData.studentId = student._id;
+    } else if (user.role === 'faculty') {
+      const faculty = await Faculty.findOne({ userId: user._id });
+      if (faculty) userData.subject = faculty.subject;
+    }
+
+    res.json({ valid: true, user: userData });
   } catch (error) {
     res.status(401).json({ valid: false, error: 'Session expired or invalid' });
   }

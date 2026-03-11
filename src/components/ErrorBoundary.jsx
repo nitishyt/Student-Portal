@@ -10,8 +10,8 @@ class ErrorBoundary extends React.Component {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error, errorInfo) {
-    console.error('React Error Boundary caught:', error, errorInfo);
+  componentDidCatch() {
+    // Error is already captured in state via getDerivedStateFromError
   }
 
   render() {
@@ -20,7 +20,7 @@ class ErrorBoundary extends React.Component {
         <div style={{ padding: 40, textAlign: 'center', fontFamily: 'Arial' }}>
           <h2 style={{ color: '#e53e3e' }}>Something went wrong</h2>
           <p style={{ color: '#666', marginBottom: 20 }}>
-            {this.state.error?.message || 'Unknown error'}
+            An unexpected error occurred. Please try again.
           </p>
           <button
             onClick={() => {
