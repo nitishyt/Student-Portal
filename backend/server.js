@@ -83,17 +83,15 @@ if (process.env.FRONTEND_URL) {
   allowedOrigins.push(process.env.FRONTEND_URL);
 }
 
-if (!IS_PRODUCTION) {
-  allowedOrigins.push(/^http:\/\/localhost(:\d+)?$/);
-  allowedOrigins.push(/^http:\/\/127\.0\.0\.1(:\d+)?$/);
-}
+// Allow all onrender.com subdomains (for Render deployments)
+allowedOrigins.push(/^https:\/\/.*\.onrender\.com$/);
+// Allow localhost for development
+allowedOrigins.push(/^http:\/\/localhost(:\d+)?$/);
+allowedOrigins.push(/^http:\/\/127\.0\.0\.1(:\d+)?$/);
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) {
-      if (IS_PRODUCTION) return callback(new Error('Origin header is required'));
-      return callback(null, true);
-    }
+    if (!origin) return callback(null, true);
 
     const isAllowed = allowedOrigins.some((allowed) => {
       if (allowed instanceof RegExp) return allowed.test(origin);
