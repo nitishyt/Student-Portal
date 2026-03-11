@@ -8,10 +8,7 @@ export const getAccessToken = () => accessToken;
 export const clearAccessToken = () => { accessToken = null; };
 
 // ─── Base URL ────────────────────────────────────────────────────────
-const baseURL = import.meta.env.VITE_API_URL;
-if (!baseURL) {
-  throw new Error('VITE_API_URL is not set. Check your .env.development or .env.production file.');
-}
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL,
