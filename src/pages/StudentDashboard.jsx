@@ -13,20 +13,17 @@ const StudentDashboard = () => {
   const navigate = useNavigate();
   const currentStudentId = auth.getCurrentStudentId();
 
-  // Load student data on component mount
   useEffect(() => {
     if (currentStudentId) {
       loadStudentData();
     }
   }, [currentStudentId]);
 
-  // Load all student data
   const loadStudentData = async () => {
     try {
       setLoading(true);
       const studentInfo = await studentData.getStudentById(currentStudentId);
       setStudent(studentInfo);
-
       if (studentInfo) {
         await calculateAttendanceStats();
         await loadResults();
@@ -38,7 +35,6 @@ const StudentDashboard = () => {
     }
   };
 
-  // Calculate attendance statistics
   const calculateAttendanceStats = async () => {
     try {
       const attendance = await studentData.getAttendance(currentStudentId);
@@ -46,14 +42,12 @@ const StudentDashboard = () => {
       const absent = attendance.filter(a => a.status === 'absent').length;
       const total = attendance.length;
       const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
-
       setAttendanceStats({ present, absent, total, percentage });
     } catch (error) {
       setAttendanceStats({ present: 0, absent: 0, total: 0, percentage: 0 });
     }
   };
 
-  // Load student results
   const loadResults = async () => {
     try {
       const studentResults = await studentData.getResults(currentStudentId);
@@ -63,19 +57,16 @@ const StudentDashboard = () => {
     }
   };
 
-  // Handle logout
   const handleLogout = async () => {
     await auth.logout();
     navigate('/login');
   };
 
-  // Handle section change
   const showSection = (section) => {
     setActiveSection(section);
     loadStudentData();
   };
 
-  // Get grade class for result
   const getGradeClass = (marks) => {
     if (marks >= 90) return 'excellent';
     if (marks >= 75) return 'good';
@@ -84,121 +75,166 @@ const StudentDashboard = () => {
   };
 
   if (loading || !student) {
-    return <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>;
+    return <div className="loading-screen"><div className="loading-spinner"></div> Loading...</div>;
   }
 
+  const navItems = [
+    { key: 'profile', icon: '👤', label: 'My Profile' },
+    { key: 'attendance', icon: '📊', label: 'Attendance' },
+    { key: 'results', icon: '📝', label: 'Results' }
+  ];
+
+  const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
+
   return (
-    <div>
-      <div className="header" style={{ background: '#667eea' }}>
-        <h1>Student Dashboard</h1>
-        <button
-          onClick={handleLogout}
-          style={{ padding: '10px 20px', background: 'white', color: '#667eea', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-        >
-          Logout
-        </button>
-      </div>
-
-      <div className="nav">
-        <button
-          onClick={() => showSection('profile')}
-          className={activeSection === 'profile' ? 'active' : ''}
-          style={{ background: '#667eea' }}
-        >
-          Profile
-        </button>
-        <button
-          onClick={() => showSection('attendance')}
-          className={activeSection === 'attendance' ? 'active' : ''}
-          style={{ background: '#667eea' }}
-        >
-          Attendance
-        </button>
-        <button
-          onClick={() => showSection('results')}
-          className={activeSection === 'results' ? 'active' : ''}
-          style={{ background: '#667eea' }}
-        >
-          Results
-        </button>
-      </div>
-
-      <div className="content">
-        {/* Profile Section */}
-        {activeSection === 'profile' && (
-          <div>
-            <h2>My Profile</h2>
-            <div className="info-card">
-              <h3>{student.name}</h3>
-              <p><strong>Roll Number:</strong> {student.rollNo}</p>
-              <p><strong>Branch:</strong> {student.branch}</p>
-              <p><strong>Standard:</strong> {student.standard}</p>
-              <p><strong>Phone:</strong> {student.phone}</p>
-            </div>
+    <div className="dashboard-layout">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-name">Student Portal</div>
+          <span className="sidebar-brand-badge">Student</span>
+        </div>
+        <nav className="sidebar-nav">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              className={`sidebar-nav-item ${activeSection === item.key ? 'active' : ''}`}
+              onClick={() => showSection(item.key)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <div className="sidebar-avatar">{getInitials(student.name)}</div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name">{student.name}</div>
+            <div className="sidebar-user-role">Student</div>
           </div>
-        )}
+          <button className="sidebar-logout" onClick={handleLogout}>Logout</button>
+        </div>
+      </aside>
 
-        {/* Attendance Section */}
-        {activeSection === 'attendance' && (
-          <div>
-            <h2>My Attendance</h2>
-            <div className="attendance-summary">
-              <div className="stat-card">
-                <h3>{attendanceStats.percentage}%</h3>
-                <p>Attendance Rate</p>
-              </div>
-              <div className="stat-card">
-                <h3>{attendanceStats.present}</h3>
-                <p>Present Days</p>
-              </div>
-              <div className="stat-card">
-                <h3>{attendanceStats.absent}</h3>
-                <p>Absent Days</p>
-              </div>
-              <div className="stat-card">
-                <h3>{attendanceStats.total}</h3>
-                <p>Total Days</p>
-              </div>
-            </div>
+      {/* Main */}
+      <div className="dashboard-main">
+        {/* Bug 4 fix — header */}
+        <div className="dashboard-header">
+          <h1 className="header-title">
+            {activeSection === 'profile' ? '👤 My Profile' : activeSection === 'attendance' ? '📊 My Attendance' : '📋 My Results'}
+          </h1>
+          <div className="header-meta">
+            <span className="header-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            <div className="header-avatar">{student?.name?.[0] || 'S'}</div>
           </div>
-        )}
+        </div>
 
-        {/* Results Section */}
-        {activeSection === 'results' && (
-          <div>
-            <h2>My Results</h2>
-            {results.length === 0 ? (
-              <div className="info-card">
-                <p>No results available yet.</p>
-              </div>
-            ) : (
-              <div>
-                <div className="info-card">
-                  <h3>Overall Performance</h3>
-                  <p><strong>Average Score:</strong> {Math.round(results.reduce((sum, r) => sum + r.marks, 0) / results.length)}/100</p>
-                  <p><strong>Total Subjects:</strong> {results.length}</p>
+        <div className="dashboard-content">
+          {/* Profile Section */}
+          {activeSection === 'profile' && (
+            <div className="profile-card">
+              <div className="profile-banner"></div>
+              <div className="profile-body">
+                <div className="profile-avatar">{student.name?.[0]}</div>
+                <h2 className="profile-name">{student.name}</h2>
+                <span className="profile-badge">Student</span>
+                <div className="profile-info-grid">
+                  <div className="profile-info-item">
+                    <span className="info-label">🎫 Roll Number</span>
+                    <span className="info-value">{student.rollNo}</span>
+                  </div>
+                  <div className="profile-info-item">
+                    <span className="info-label">🏫 Branch</span>
+                    <span className="info-value">{student.branch}</span>
+                  </div>
+                  <div className="profile-info-item">
+                    <span className="info-label">📚 Year</span>
+                    <span className="info-value">{student.standard}</span>
+                  </div>
+                  <div className="profile-info-item">
+                    <span className="info-label">📞 Phone</span>
+                    <span className="info-value">{student.phone}</span>
+                  </div>
                 </div>
+              </div>
+            </div>
+          )}
 
-                {results.map((result, index) => (
-                  <div key={result._id || result.id || index} className="result-item">
-                    <div>
-                      <h4>{result.subject}</h4>
-                      <small>Date: {new Date(result.createdAt).toLocaleDateString()}</small>
-                      {(result.pdfFilename || result.fileName) && (
-                        <div>
-                          <a href={result.pdfFile || result.fileData} download={result.pdfFilename || result.fileName} style={{ color: '#667eea', textDecoration: 'none' }}>📄 {result.pdfFilename || result.fileName}</a>
-                        </div>
-                      )}
+          {/* Attendance Section */}
+          {activeSection === 'attendance' && (
+            <div>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-icon">📅</div>
+                  <h3>{attendanceStats.percentage}%</h3>
+                  <p>Attendance Rate</p>
+                </div>
+                <div className="stat-card success">
+                  <div className="stat-icon">✅</div>
+                  <h3>{attendanceStats.present}</h3>
+                  <p>Present Days</p>
+                </div>
+                <div className="stat-card danger">
+                  <div className="stat-icon">❌</div>
+                  <h3>{attendanceStats.absent}</h3>
+                  <p>Absent Days</p>
+                </div>
+                <div className="stat-card warning">
+                  <div className="stat-icon">📊</div>
+                  <h3>{attendanceStats.total}</h3>
+                  <p>Total Days</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Results Section */}
+          {activeSection === 'results' && (
+            <div>
+              {results.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No Results Yet</h3>
+                  <p>No results available yet.</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="stats-grid">
+                    <div className="stat-card">
+                      <div className="stat-icon">🏆</div>
+                      <h3>{Math.round(results.reduce((sum, r) => sum + r.marks, 0) / results.length)}</h3>
+                      <p>Average Score / 100</p>
                     </div>
-                    <div className={`grade ${getGradeClass(result.marks)}`}>
-                      {result.marks}/100
+                    <div className="stat-card success">
+                      <div className="stat-icon">📚</div>
+                      <h3>{results.length}</h3>
+                      <p>Total Subjects</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+
+                  <div className="results-list">
+                    {results.map((result, index) => (
+                      <div key={result._id || result.id || index} className="result-card">
+                        <div className="result-card-info">
+                          <h4>{result.subject}</h4>
+                          <span className="result-date">📅 {new Date(result.createdAt).toLocaleDateString()}</span>
+                          {(result.pdfFilename || result.fileName) && (
+                            <div>
+                              <a href={result.pdfFile || result.fileData} download={result.pdfFilename || result.fileName} className="result-pdf-link">📄 {result.pdfFilename || result.fileName}</a>
+                            </div>
+                          )}
+                        </div>
+                        <div className={`result-score ${getGradeClass(result.marks)}`}>
+                          {result.marks}
+                          <span className="score-max">/100</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

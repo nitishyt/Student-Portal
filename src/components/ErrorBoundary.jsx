@@ -17,27 +17,20 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 40, textAlign: 'center', fontFamily: 'Arial' }}>
-          <h2 style={{ color: '#e53e3e' }}>Something went wrong</h2>
-          <p style={{ color: '#666', marginBottom: 20 }}>
+        <div className="error-boundary">
+          <div className="error-boundary-icon">😵</div>
+          <h2>Something went wrong</h2>
+          <p>
             An unexpected error occurred. Please try again.
           </p>
           <button
+            className="btn btn-primary"
             onClick={() => {
               sessionStorage.clear();
               window.location.href = '/login';
             }}
-            style={{
-              padding: '10px 24px',
-              background: '#764ba2',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 5,
-              cursor: 'pointer',
-              fontSize: 16
-            }}
           >
-            Go to Login
+            Return to Login
           </button>
         </div>
       );

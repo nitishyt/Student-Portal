@@ -55,148 +55,203 @@ const ParentDashboard = () => {
     return 'poor';
   };
 
+  const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
+
+  const navItems = [
+    { key: 'profile', icon: '👶', label: 'Child Profile' },
+    { key: 'attendance', icon: '📊', label: 'Attendance' },
+    { key: 'results', icon: '📝', label: 'Results' }
+  ];
+
   if (loading || !child) {
-    return (
-      <div>
-        <div className="header" style={{ background: '#667eea' }}>
-          <h1>Parent Dashboard</h1>
-          <button onClick={handleLogout} style={{ padding: '10px 20px', background: 'white', color: '#667eea', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Logout</button>
-        </div>
-        <div className="content">
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
+    return <div className="loading-screen"><div className="loading-spinner"></div> Loading...</div>;
   }
 
   const stats = getAttendanceStats();
 
   return (
-    <div>
-      <div className="header" style={{ background: '#667eea' }}>
-        <h1>Parent Dashboard</h1>
-        <button onClick={handleLogout} style={{ padding: '10px 20px', background: 'white', color: '#667eea', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Logout</button>
-      </div>
-
-      <div className="nav">
-        <button onClick={() => { setActiveSection('profile'); loadData(); }} className={activeSection === 'profile' ? 'active' : ''} style={{ background: '#667eea' }}>Child Profile</button>
-        <button onClick={() => { setActiveSection('attendance'); loadData(); }} className={activeSection === 'attendance' ? 'active' : ''} style={{ background: '#667eea' }}>Attendance</button>
-        <button onClick={() => { setActiveSection('results'); loadData(); }} className={activeSection === 'results' ? 'active' : ''} style={{ background: '#667eea' }}>Results</button>
-      </div>
-
-      <div className="content">
-        {activeSection === 'profile' && (
-          <div>
-            <h2>Child Information</h2>
-            <div className="info-card">
-              <h3>{child.name}</h3>
-              <p><strong>Roll Number:</strong> {child.rollNo}</p>
-              <p><strong>Branch:</strong> {child.branch}</p>
-              <p><strong>Standard:</strong> {child.standard}</p>
-              <p><strong>Phone:</strong> {child.phone}</p>
-            </div>
+    <div className="dashboard-layout">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-name">Student Portal</div>
+          <span className="sidebar-brand-badge">Parent</span>
+        </div>
+        <nav className="sidebar-nav">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              className={`sidebar-nav-item ${activeSection === item.key ? 'active' : ''}`}
+              onClick={() => { setActiveSection(item.key); loadData(); }}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <div className="sidebar-avatar">{getInitials(child.name)}</div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name">{child.name}</div>
+            <div className="sidebar-user-role">Parent View</div>
           </div>
-        )}
+          <button className="sidebar-logout" onClick={handleLogout}>Logout</button>
+        </div>
+      </aside>
 
-        {activeSection === 'attendance' && (
-          <div>
-            <h2>Attendance Statistics</h2>
-            <div className="attendance-summary">
-              <div className="stat-card">
-                <h3>{stats.percentage}%</h3>
-                <p>Attendance Rate</p>
-              </div>
-              <div className="stat-card">
-                <h3>{stats.present}</h3>
-                <p>Present Days</p>
-              </div>
-              <div className="stat-card">
-                <h3>{stats.absent}</h3>
-                <p>Absent Days</p>
-              </div>
-              <div className="stat-card">
-                <h3>{stats.total}</h3>
-                <p>Total Days</p>
-              </div>
-            </div>
-
-            <h3>Attendance Details</h3>
-            {attendance.length === 0 ? (
-              <div className="info-card">
-                <p>No attendance records found.</p>
-              </div>
-            ) : (
-              <div className="info-card">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #ddd' }}>
-                      <th style={{ padding: '10px', textAlign: 'left' }}>Date</th>
-                      <th style={{ padding: '10px', textAlign: 'left' }}>Time</th>
-                      <th style={{ padding: '10px', textAlign: 'left' }}>Status</th>
-                      <th style={{ padding: '10px', textAlign: 'left' }}>Subject</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attendance.map((record, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: '10px' }}>{new Date(record.date).toLocaleDateString()}</td>
-                        <td style={{ padding: '10px' }}>{record.time || 'N/A'}</td>
-                        <td style={{ padding: '10px' }}>
-                          <span style={{
-                            padding: '5px 10px',
-                            borderRadius: '5px',
-                            background: record.status === 'present' ? '#4CAF50' : '#f44336',
-                            color: 'white',
-                            fontSize: '12px'
-                          }}>
-                            {record.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px' }}>{record.subject || 'N/A'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+      {/* Main */}
+      <div className="dashboard-main">
+        {/* Bug 4 fix — header */}
+        <div className="dashboard-header">
+          <h1 className="header-title">
+            {activeSection === 'profile' ? '👶 Child Profile' : activeSection === 'attendance' ? '📊 Attendance' : '📋 Results'}
+          </h1>
+          <div className="header-meta">
+            <span className="header-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            <div className="header-avatar" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>P</div>
           </div>
-        )}
+        </div>
 
-        {activeSection === 'results' && (
-          <div>
-            <h2>Academic Results</h2>
-            {results.length === 0 ? (
-              <div className="info-card">
-                <p>No results available yet.</p>
-              </div>
-            ) : (
-              <div>
-                <div className="info-card">
-                  <h3>Overall Performance</h3>
-                  <p><strong>Average Score:</strong> {Math.round(results.reduce((sum, r) => sum + r.marks, 0) / results.length)}/100</p>
-                  <p><strong>Total Subjects:</strong> {results.length}</p>
+        <div className="dashboard-content">
+          {/* Profile */}
+          {activeSection === 'profile' && (
+            <div className="profile-card">
+              <div className="profile-banner"></div>
+              <div className="profile-body">
+                <div className="profile-avatar">{child.name?.[0]}</div>
+                <h2 className="profile-name">{child.name}</h2>
+                <span className="profile-badge">Student</span>
+                <div className="profile-info-grid">
+                  <div className="profile-info-item">
+                    <span className="info-label">🎫 Roll Number</span>
+                    <span className="info-value">{child.rollNo}</span>
+                  </div>
+                  <div className="profile-info-item">
+                    <span className="info-label">🏫 Branch</span>
+                    <span className="info-value">{child.branch}</span>
+                  </div>
+                  <div className="profile-info-item">
+                    <span className="info-label">📚 Year</span>
+                    <span className="info-value">{child.standard}</span>
+                  </div>
+                  <div className="profile-info-item">
+                    <span className="info-label">📞 Phone</span>
+                    <span className="info-value">{child.phone}</span>
+                  </div>
                 </div>
+              </div>
+            </div>
+          )}
 
-                {results.map((result, index) => (
-                  <div key={result._id || result.id || index} className="result-item">
-                    <div>
-                      <h4>{result.subject}</h4>
-                      <small>Date: {new Date(result.createdAt).toLocaleDateString()}</small>
-                      {(result.pdfFilename || result.fileName) && (
-                        <div>
-                          <a href={result.pdfFile || result.fileData} download={result.pdfFilename || result.fileName} style={{ color: '#667eea', textDecoration: 'none' }}>📄 {result.pdfFilename || result.fileName}</a>
-                        </div>
-                      )}
+          {/* Attendance */}
+          {activeSection === 'attendance' && (
+            <div>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-icon">📈</div>
+                  <h3>{stats.percentage}%</h3>
+                  <p>Attendance Rate</p>
+                </div>
+                <div className="stat-card success">
+                  <div className="stat-icon">✅</div>
+                  <h3>{stats.present}</h3>
+                  <p>Present Days</p>
+                </div>
+                <div className="stat-card danger">
+                  <div className="stat-icon">❌</div>
+                  <h3>{stats.absent}</h3>
+                  <p>Absent Days</p>
+                </div>
+                <div className="stat-card warning">
+                  <div className="stat-icon">📅</div>
+                  <h3>{stats.total}</h3>
+                  <p>Total Days</p>
+                </div>
+              </div>
+
+              <h3 className="section-subtitle">Attendance Details</h3>
+              {attendance.length === 0 ? (
+                <div className="empty-state">
+                  <p>No attendance records found.</p>
+                </div>
+              ) : (
+                <div className="table-card">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Subject</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attendance.map((record, idx) => (
+                        <tr key={idx}>
+                          <td>{new Date(record.date).toLocaleDateString()}</td>
+                          <td>{record.time || 'N/A'}</td>
+                          <td>{record.subject || 'N/A'}</td>
+                          <td>
+                            <span className={`status-badge ${record.status === 'present' ? 'badge-present' : 'badge-absent'}`}>
+                              {record.status.toUpperCase()}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Results */}
+          {activeSection === 'results' && (
+            <div>
+              {results.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No Results Yet</h3>
+                  <p>No results available yet.</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="stats-grid">
+                    <div className="stat-card">
+                      <div className="stat-icon">🏆</div>
+                      <h3>{Math.round(results.reduce((sum, r) => sum + r.marks, 0) / results.length)}</h3>
+                      <p>Average Score / 100</p>
                     </div>
-                    <div className={`grade ${getGradeClass(result.marks)}`}>
-                      {result.marks}/100
+                    <div className="stat-card success">
+                      <div className="stat-icon">📚</div>
+                      <h3>{results.length}</h3>
+                      <p>Total Subjects</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+
+                  <div className="results-list">
+                    {results.map((result, index) => (
+                      <div key={result._id || result.id || index} className="result-card">
+                        <div className="result-card-info">
+                          <h4>{result.subject}</h4>
+                          <span className="result-date">📅 {new Date(result.createdAt).toLocaleDateString()}</span>
+                          {(result.pdfFilename || result.fileName) && (
+                            <div>
+                              <a href={result.pdfFile || result.fileData} download={result.pdfFilename || result.fileName} className="result-pdf-link">📄 {result.pdfFilename || result.fileName}</a>
+                            </div>
+                          )}
+                        </div>
+                        <div className={`result-score ${getGradeClass(result.marks)}`}>
+                          {result.marks}
+                          <span className="score-max">/100</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
