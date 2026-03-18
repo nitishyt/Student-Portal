@@ -10,7 +10,6 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Redirect if already logged in
   useEffect(() => {
     if (auth.isAuthenticated()) {
       const currentUserType = auth.getUserType();
@@ -24,7 +23,6 @@ const Login = () => {
     }
   }, [navigate]);
 
-  // Handle user type change
   const handleUserTypeChange = (type) => {
     setUserType(type);
     setUsername('');
@@ -32,7 +30,6 @@ const Login = () => {
     setError('');
   };
 
-  // Handle login form submission
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -60,52 +57,19 @@ const Login = () => {
   };
 
   const roles = [
-    { key: 'student', label: '🎓 Student' },
-    { key: 'faculty', label: '📚 Faculty' },
-    { key: 'parent', label: '👨‍👩‍👧 Parent' },
-    { key: 'admin', label: '🛡️ Admin' }
+    { key: 'student', label: 'Student' },
+    { key: 'faculty', label: 'Faculty' },
+    { key: 'parent', label: 'Parent' },
+    { key: 'admin', label: 'Admin' }
   ];
 
   return (
     <div className="login-page">
-      {/* Left Panel */}
-      <div className="login-left">
-        <div className="floating-shape shape-1"></div>
-        <div className="floating-shape shape-2"></div>
-        <div className="floating-shape shape-3"></div>
-
-        <h1 className="login-left-brand">Student Portal</h1>
-        <p className="login-left-tagline">
-          Empowering Education, Connecting Communities
-        </p>
-        <ul className="login-features">
-          <li>
-            <span className="feature-icon">✓</span>
-            Real-time attendance tracking
-          </li>
-          <li>
-            <span className="feature-icon">✓</span>
-            Instant result access & PDF reports
-          </li>
-          <li>
-            <span className="feature-icon">✓</span>
-            Multi-role secure dashboard
-          </li>
-        </ul>
-
-        {/* Wave SVG */}
-        <svg className="login-wave" viewBox="0 0 1440 100" preserveAspectRatio="none">
-          <path d="M0,40 C360,100 1080,0 1440,60 L1440,100 L0,100 Z" fill="rgba(255,255,255,0.05)" />
-        </svg>
-      </div>
-
-      {/* Right Panel */}
       <div className="login-right">
         <div className="login-card">
-          <h2 className="login-title">Welcome Back 👋</h2>
-          <p className="login-subtitle">Sign in to your portal</p>
+          <h2 className="login-title">Student Portal</h2>
+          <p style={{ color: '#666', marginBottom: '20px' }}>Sign in to access your portal</p>
 
-          {/* Role Tabs */}
           <div className="login-role-tabs">
             {roles.map((role) => (
               <button
@@ -120,37 +84,33 @@ const Login = () => {
           </div>
 
           <form onSubmit={handleLogin}>
-            {/* Username */}
             <div className="login-input-group">
-              <span className="input-icon">👤</span>
+              <label>Username</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={`${userType.charAt(0).toUpperCase() + userType.slice(1)} Username`}
+                placeholder="Enter your username"
               />
             </div>
 
-            {/* Password */}
             <div className="login-input-group">
-              <span className="input-icon">🔒</span>
+              <label>Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={`${userType.charAt(0).toUpperCase() + userType.slice(1)} Password`}
+                placeholder="Enter your password"
               />
             </div>
 
-            {/* Submit */}
             <button type="submit" className="login-btn" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
 
-            {/* Error */}
             {error && (
               <div className="login-error">
-                <span>⚠️</span> {error}
+                {error}
               </div>
             )}
           </form>

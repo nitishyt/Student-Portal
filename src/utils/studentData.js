@@ -63,8 +63,8 @@ export const studentData = {
     await resultAPI.delete(studentId, resultId);
   },
 
-  deleteAttendance: async (studentId, attendanceId) => {
-    await attendanceAPI.delete(studentId, attendanceId);
+  deleteAttendance: async (studentId, data) => {
+    await attendanceAPI.delete(studentId, data);
   },
 
   getFaculties: async () => {

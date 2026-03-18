@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../utils/auth';
 import { studentData } from '../utils/studentData';
+import AttendanceDownload from '../components/AttendanceDownload';
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState('students');
@@ -162,6 +163,7 @@ const AdminDashboard = () => {
     { key: 'students', icon: '👥', label: 'Students' },
     { key: 'faculty', icon: '🎓', label: 'Faculty' },
     { key: 'attendance', icon: '📊', label: 'Attendance' },
+    { key: 'downloadAttendance', icon: '📥', label: 'Download Attendance' },
     { key: 'results', icon: '📝', label: 'Results' }
   ];
 
@@ -198,7 +200,7 @@ const AdminDashboard = () => {
         {/* Bug 4 fix — header */}
         <div className="dashboard-header">
           <h1 className="header-title">
-            {activeSection === 'students' ? '👥 Student Management' : activeSection === 'faculty' ? '🎓 Faculty Management' : activeSection === 'attendance' ? '📊 View Attendance' : '📋 View Results'}
+            {activeSection === 'students' ? '👥 Student Management' : activeSection === 'faculty' ? '🎓 Faculty Management' : activeSection === 'attendance' ? '📊 View Attendance' : activeSection === 'downloadAttendance' ? '📥 Download Attendance' : '📋 View Results'}
           </h1>
           <div className="header-meta">
             <span className="header-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
@@ -476,6 +478,11 @@ const AdminDashboard = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ─── DOWNLOAD ATTENDANCE SECTION ────────── */}
+          {activeSection === 'downloadAttendance' && (
+            <AttendanceDownload />
           )}
 
           {/* ─── RESULTS SECTION ───────────────────── */}

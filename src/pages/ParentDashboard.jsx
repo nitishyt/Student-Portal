@@ -41,9 +41,20 @@ const ParentDashboard = () => {
 
   const getAttendanceStats = () => {
     if (!attendance || attendance.length === 0) return { total: 0, present: 0, absent: 0, percentage: 0 };
-    const present = attendance.filter(a => a.status === 'present').length;
-    const absent = attendance.filter(a => a.status === 'absent').length;
-    const total = attendance.length;
+    
+    // Filter attendance for current month only
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const currentMonthAttendance = attendance.filter(a => {
+      const recordDate = new Date(a.date);
+      return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+    });
+    
+    const present = currentMonthAttendance.filter(a => a.status === 'present').length;
+    const absent = currentMonthAttendance.filter(a => a.status === 'absent').length;
+    const total = currentMonthAttendance.length;
     const percentage = total ? ((present / total) * 100).toFixed(1) : 0;
     return { total, present, absent, percentage };
   };
@@ -155,53 +166,62 @@ const ParentDashboard = () => {
                 <div className="stat-card success">
                   <div className="stat-icon">✅</div>
                   <h3>{stats.present}</h3>
-                  <p>Present Days</p>
+                  <p>Present Lectures</p>
                 </div>
                 <div className="stat-card danger">
                   <div className="stat-icon">❌</div>
                   <h3>{stats.absent}</h3>
-                  <p>Absent Days</p>
+                  <p>Absent Lectures</p>
                 </div>
                 <div className="stat-card warning">
                   <div className="stat-icon">📅</div>
                   <h3>{stats.total}</h3>
-                  <p>Total Days</p>
+                  <p>Total Lectures ({new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})</p>
                 </div>
               </div>
 
-              <h3 className="section-subtitle">Attendance Details</h3>
-              {attendance.length === 0 ? (
-                <div className="empty-state">
-                  <p>No attendance records found.</p>
-                </div>
-              ) : (
-                <div className="table-card">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Subject</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {attendance.map((record, idx) => (
-                        <tr key={idx}>
-                          <td>{new Date(record.date).toLocaleDateString()}</td>
-                          <td>{record.time || 'N/A'}</td>
-                          <td>{record.subject || 'N/A'}</td>
-                          <td>
-                            <span className={`status-badge ${record.status === 'present' ? 'badge-present' : 'badge-absent'}`}>
-                              {record.status.toUpperCase()}
-                            </span>
-                          </td>
+              <h3 className="section-subtitle">Lectures Details ({new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})</h3>
+              {(() => {
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                const currentMonthAttendance = attendance.filter(a => {
+                  const recordDate = new Date(a.date);
+                  return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+                });
+                return currentMonthAttendance.length === 0 ? (
+                  <div className="empty-state">
+                    <p>No lecture records found for this month.</p>
+                  </div>
+                ) : (
+                  <div className="table-card">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Time</th>
+                          <th>Subject</th>
+                          <th>Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody>
+                        {currentMonthAttendance.map((record, idx) => (
+                          <tr key={idx}>
+                            <td>{new Date(record.date).toLocaleDateString()}</td>
+                            <td>{record.time || 'N/A'}</td>
+                            <td>{record.subject || 'N/A'}</td>
+                            <td>
+                              <span className={`status-badge ${record.status === 'present' ? 'badge-present' : 'badge-absent'}`}>
+                                {record.status.toUpperCase()}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

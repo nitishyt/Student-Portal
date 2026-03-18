@@ -7,7 +7,7 @@ import FacultyDashboard from './pages/FacultyDashboard';
 import ParentDashboard from './pages/ParentDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import { auth } from './utils/auth';
-
+import './styles.css';
 function App() {
   return (
     <Router>

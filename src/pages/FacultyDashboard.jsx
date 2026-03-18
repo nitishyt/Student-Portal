@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../utils/auth';
 import { studentData } from '../utils/studentData';
+import AttendanceDownload from '../components/AttendanceDownload';
 
 const FacultyDashboard = () => {
   const [students, setStudents] = useState([]);
@@ -45,8 +46,8 @@ const FacultyDashboard = () => {
       for (const student of filtered) {
         const studentId = student._id || student.id;
         const attendance = await studentData.getAttendance(studentId);
-        const dayAttendance = attendance.find(r => r.date === selectedMonthDate && (!facultySubject || r.subject === facultySubject));
-        attendanceMap[studentId] = dayAttendance || null;
+        const dayAttendance = attendance.filter(r => r.date === selectedMonthDate && (!facultySubject || r.subject === facultySubject));
+        attendanceMap[studentId] = dayAttendance.length > 0 ? dayAttendance : [];
       }
       setClassAttendanceData(attendanceMap);
     } catch (e) { setClassAttendanceData({}); }
@@ -168,6 +169,32 @@ const FacultyDashboard = () => {
     }
   };
 
+  const handleDeleteAttendance = async (date, subject, time) => {
+    if (!window.confirm(`Delete ${subject} attendance at ${time} on ${date}?`)) return;
+
+    try {
+      setLoading(true);
+      // Find the student with this filtered class
+      const filtered = students.filter(s => s.branch === filterBranch && s.standard === filterStandard);
+      for (const student of filtered) {
+        const studentId = student._id || student.id;
+        const attendance = await studentData.getAttendance(studentId);
+        const record = attendance.find(r => r.date === date && r.subject === subject && r.time === time);
+        if (record) {
+          await studentData.deleteAttendance(studentId, { date, subject, time });
+          await fetchClassAttendance();
+          alert('Attendance deleted successfully!');
+          return;
+        }
+      }
+      alert('Attendance record not found');
+    } catch (err) {
+      alert('Error deleting attendance: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getGradeClass = (marks) => {
     if (marks >= 90) return 'excellent';
     if (marks >= 75) return 'good';
@@ -182,6 +209,7 @@ const FacultyDashboard = () => {
     { key: 'students', icon: '👥', label: 'Manage Students' },
     { key: 'attendance', icon: '✅', label: 'Mark Attendance' },
     { key: 'viewAttendance', icon: '📋', label: 'View Attendance' },
+    { key: 'downloadAttendance', icon: '📥', label: 'Download Attendance' },
     { key: 'results', icon: '📝', label: 'Manage Results' }
   ];
 
@@ -216,7 +244,7 @@ const FacultyDashboard = () => {
         {/* Bug 4 fix — header */}
         <div className="dashboard-header">
           <h1 className="header-title">
-            {activeSection === 'students' ? '👥 Student Management' : activeSection === 'attendance' ? '📋 Mark Attendance' : activeSection === 'viewAttendance' ? '📊 Attendance Report' : '📤 Upload Results'}
+            {activeSection === 'students' ? '👥 Student Management' : activeSection === 'attendance' ? '📋 Mark Attendance' : activeSection === 'viewAttendance' ? '📊 Attendance Report' : activeSection === 'downloadAttendance' ? '📥 Download Attendance' : '📤 Upload Results'}
           </h1>
           <div className="header-meta">
             <span className="header-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
@@ -559,29 +587,61 @@ const FacultyDashboard = () => {
                               <th>Status</th>
                               <th>Time</th>
                               <th>Subject</th>
+                              <th>Action</th>
                             </tr>
                           </thead>
                           <tbody>
                             {filtered.map((student) => {
                               const studentId = student._id || student.id;
-                              const attendanceRec = classAttendanceData[studentId];
-                              return (
-                                <tr key={studentId}>
-                                  <td>{student.rollNo}</td>
-                                  <td><strong>{student.name}</strong></td>
+                              const attendanceRecords = classAttendanceData[studentId] || [];
+                              
+                              // If no records, show one row with "Not Marked"
+                              if (attendanceRecords.length === 0) {
+                                return (
+                                  <tr key={`${studentId}-none`}>
+                                    <td>{student.rollNo}</td>
+                                    <td><strong>{student.name}</strong></td>
+                                    <td><span className="badge-not-marked">Not Marked</span></td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                  </tr>
+                                );
+                              }
+                              
+                              // If records exist, show one row per record
+                              return attendanceRecords.map((attendanceRec, idx) => (
+                                <tr key={`${studentId}-${idx}`}>
+                                  <td>{idx === 0 ? student.rollNo : ''}</td>
+                                  <td>{idx === 0 ? <strong>{student.name}</strong> : ''}</td>
                                   <td>
-                                    {attendanceRec ? (
-                                      <span className={`status-badge ${attendanceRec.status === 'present' ? 'badge-present' : 'badge-absent'}`}>
-                                        {attendanceRec.status.toUpperCase()}
-                                      </span>
-                                    ) : (
-                                      <span className="badge-not-marked">Not Marked</span>
-                                    )}
+                                    <span className={`status-badge ${attendanceRec.status === 'present' ? 'badge-present' : 'badge-absent'}`}>
+                                      {attendanceRec.status.toUpperCase()}
+                                    </span>
                                   </td>
-                                  <td>{attendanceRec?.time || '-'}</td>
-                                  <td>{attendanceRec?.subject || '-'}</td>
+                                  <td>{attendanceRec.time}</td>
+                                  <td>{attendanceRec.subject}</td>
+                                  <td>
+                                    <button
+                                      onClick={() => handleDeleteAttendance(selectedMonthDate, attendanceRec.subject, attendanceRec.time)}
+                                      disabled={loading}
+                                      style={{
+                                        padding: '4px 10px',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        background: '#f43f5e',
+                                        color: 'white',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        cursor: loading ? 'not-allowed' : 'pointer',
+                                        opacity: loading ? 0.6 : 1
+                                      }}
+                                    >
+                                      {loading ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                  </td>
                                 </tr>
-                              );
+                              ));
                             })}
                           </tbody>
                         </table>
@@ -597,6 +657,10 @@ const FacultyDashboard = () => {
             </div>
           )}
 
+          {/* ─── DOWNLOAD ATTENDANCE SECTION ────────── */}
+          {activeSection === 'downloadAttendance' && (
+            <AttendanceDownload />
+          )}
 
           {/* ─── RESULTS SECTION ────────────────────── */}
           {activeSection === 'results' && (

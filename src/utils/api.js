@@ -114,8 +114,14 @@ export const attendanceAPI = {
     api.get(`/attendance/student/${studentId}`),
   mark: (data) =>
     api.post('/attendance', data),
-  delete: (studentId, attendanceId) =>
-    api.delete(`/attendance/${attendanceId}`)
+  delete: (studentId, data) =>
+    api.delete(`/attendance/${studentId}`, { data }),
+  downloadMonthly: (month, year, branch, standard) => {
+    const params = new URLSearchParams({ month, year, branch, standard });
+    return api.get(`/attendance/download/monthly?${params}`, {
+      responseType: 'blob'
+    });
+  }
 };
 
 export const resultAPI = {
