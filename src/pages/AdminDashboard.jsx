@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { auth } from '../utils/auth';
 import { studentData } from '../utils/studentData';
 import AttendanceDownload from '../components/AttendanceDownload';
+import api from '../utils/api';
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState('students');
   const [students, setStudents] = useState([]);
   const [faculties, setFaculties] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState('');
-  const [attendanceCalendar, setAttendanceCalendar] = useState([]);
   const [results, setResults] = useState([]);
   const [filterBranch, setFilterBranch] = useState('');
   const [filterStandard, setFilterStandard] = useState('');
@@ -18,6 +18,13 @@ const AdminDashboard = () => {
 
   const [studentForm, setStudentForm] = useState({ name: '', rollNo: '', branch: '', standard: '', phone: '' });
   const [facultyForm, setFacultyForm] = useState({ name: '', username: '', subject: '', email: '' });
+
+  // Admin Attendance Viewer States
+  const [attendanceViewerBranch, setAttendanceViewerBranch] = useState('');
+  const [attendanceViewerYear, setAttendanceViewerYear] = useState(new Date().getFullYear().toString());
+  const [attendanceViewerMonth, setAttendanceViewerMonth] = useState('');
+  const [attendanceViewerData, setAttendanceViewerData] = useState([]);
+  const [attendanceViewerLoading, setAttendanceViewerLoading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -38,6 +45,29 @@ const AdminDashboard = () => {
     try { setLoading(true); const data = await studentData.getFaculties?.() || []; setFaculties(data); }
     catch (error) { /* silently fail */ }
     finally { setLoading(false); }
+  };
+
+  const loadAttendanceViewerData = async () => {
+    if (!attendanceViewerBranch || !attendanceViewerMonth) {
+      alert('Please select Branch and Month');
+      return;
+    }
+    try {
+      setAttendanceViewerLoading(true);
+      const response = await api.get('/attendance/admin-view', {
+        params: {
+          branch: attendanceViewerBranch,
+          year: attendanceViewerYear,
+          month: attendanceViewerMonth
+        }
+      });
+      setAttendanceViewerData(response.data || []);
+    } catch (error) {
+      alert('Error loading attendance: ' + (error.response?.data?.error || error.message));
+      setAttendanceViewerData([]);
+    } finally {
+      setAttendanceViewerLoading(false);
+    }
   };
 
   const handleLogout = async () => { await auth.logout(); navigate('/login'); };
@@ -126,30 +156,15 @@ const AdminDashboard = () => {
     }
   };
 
-  const getAttendanceStats = (attendance) => {
-    if (!attendance || attendance.length === 0) return { total: 0, present: 0, percentage: 0 };
-    const present = attendance.filter(a => a.status === 'present').length;
-    const total = attendance.length;
-    return { total, present, percentage: total ? ((present / total) * 100).toFixed(1) : 0 };
-  };
-
   const showSection = (section) => {
     setActiveSection(section);
-    if (section === 'attendance' || section === 'results') { setSelectedStudent(''); setAttendanceCalendar([]); setResults([]); }
+    if (section === 'results') { setSelectedStudent(''); setResults([]); }
     if (section === 'students') loadStudents();
   };
 
   const handleStudentSelect = (studentId, section) => {
     setSelectedStudent(studentId);
-    if (section === 'attendance') loadAttendanceForStudent(studentId);
-    else if (section === 'results') loadResultsForStudent(studentId);
-  };
-
-  const loadAttendanceForStudent = async (studentId) => {
-    if (!studentId) return;
-    try { setLoading(true); const attendance = await studentData.getAttendance(studentId); setAttendanceCalendar(attendance || []); }
-    catch (error) { alert('Error loading attendance: ' + error.message); }
-    finally { setLoading(false); }
+    if (section === 'results') loadResultsForStudent(studentId);
   };
 
   const loadResultsForStudent = async (studentId) => {
@@ -162,7 +177,7 @@ const AdminDashboard = () => {
   const navItems = [
     { key: 'students', icon: '👥', label: 'Students' },
     { key: 'faculty', icon: '🎓', label: 'Faculty' },
-    { key: 'attendance', icon: '📊', label: 'Attendance' },
+    { key: 'attendanceViewer', icon: '📋', label: 'Attendance Viewer' },
     { key: 'results', icon: '📝', label: 'Results' }
   ];
 
@@ -199,7 +214,7 @@ const AdminDashboard = () => {
         {/* Bug 4 fix — header */}
         <div className="dashboard-header">
           <h1 className="header-title">
-            {activeSection === 'students' ? '👥 Student Management' : activeSection === 'faculty' ? '🎓 Faculty Management' : activeSection === 'attendance' ? '📊 View Attendance' : activeSection === 'downloadAttendance' ? '📥 Download Attendance' : '📋 View Results'}
+            {activeSection === 'students' ? '👥 Student Management' : activeSection === 'faculty' ? '🎓 Faculty Management' : activeSection === 'attendanceViewer' ? '📋 Attendance Viewer' : '📝 View Results'}
           </h1>
           <div className="header-meta">
             <span className="header-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
@@ -376,16 +391,16 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* ─── ATTENDANCE SECTION ────────────────── */}
-          {activeSection === 'attendance' && (
+          {/* ─── ATTENDANCE VIEWER SECTION ────────── */}
+          {activeSection === 'attendanceViewer' && (
             <div>
-              <h2 className="section-title">📊 View Student Attendance</h2>
+              <h2 className="section-title">📋 Attendance Viewer</h2>
 
               <div className="filter-bar">
                 <div className="filter-group">
                   <label className="filter-label">Branch</label>
-                  <select className="form-select" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
-                    <option value="">All Branches</option>
+                  <select className="form-select" value={attendanceViewerBranch} onChange={(e) => setAttendanceViewerBranch(e.target.value)}>
+                    <option value="">Select Branch</option>
                     <option value="DS">DS</option>
                     <option value="AIML">AIML</option>
                     <option value="IT">IT</option>
@@ -394,86 +409,100 @@ const AdminDashboard = () => {
                 </div>
                 <div className="filter-group">
                   <label className="filter-label">Year</label>
-                  <select className="form-select" value={filterStandard} onChange={(e) => setFilterStandard(e.target.value)}>
-                    <option value="">All Years</option>
-                    <option value="FE">FE</option>
-                    <option value="SE">SE</option>
-                    <option value="TE">TE</option>
-                    <option value="BE">BE</option>
+                  <select className="form-select" value={attendanceViewerYear} onChange={(e) => setAttendanceViewerYear(e.target.value)}>
+                    <option value="">Select Year</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
                   </select>
                 </div>
-                <button className="btn-reset" onClick={() => { setFilterBranch(''); setFilterStandard(''); setSelectedStudent(''); setAttendanceCalendar([]); }}>↺ Reset</button>
+                <div className="filter-group">
+                  <label className="filter-label">Month</label>
+                  <select className="form-select" value={attendanceViewerMonth} onChange={(e) => setAttendanceViewerMonth(e.target.value)}>
+                    <option value="">Select Month</option>
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </select>
+                </div>
+                <button className="btn-filter" onClick={loadAttendanceViewerData} disabled={attendanceViewerLoading}>
+                  {attendanceViewerLoading ? 'Loading...' : 'Load Attendance'}
+                </button>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '24px' }}>
-                <label className="form-label">Select Student</label>
-                <select className="form-select" value={selectedStudent} onChange={(e) => handleStudentSelect(e.target.value, 'attendance')}>
-                  <option value="">-- Select Student for Attendance --</option>
-                  {students.filter(s => (!filterBranch || s.branch === filterBranch) && (!filterStandard || s.standard === filterStandard)).map(student => (
-                    <option key={student._id || student.id} value={student._id || student.id}>{student.name} ({student.rollNo})</option>
-                  ))}
-                </select>
-              </div>
+              {attendanceViewerLoading && (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <div className="loading-spinner"></div>
+                  <p>Loading attendance data...</p>
+                </div>
+              )}
 
-              {selectedStudent && (
-                <div>
-                  <div className="stats-grid">
-                    {(() => {
-                      const stats = getAttendanceStats(attendanceCalendar);
-                      return (<>
-                        <div className="stat-card">
-                          <div className="stat-icon">📈</div>
-                          <h3>{stats.percentage}%</h3>
-                          <p>Attendance Rate</p>
-                        </div>
-                        <div className="stat-card success">
-                          <div className="stat-icon">✅</div>
-                          <h3>{stats.present}</h3>
-                          <p>Present Days</p>
-                        </div>
-                        <div className="stat-card danger">
-                          <div className="stat-icon">❌</div>
-                          <h3>{stats.total - stats.present}</h3>
-                          <p>Absent Days</p>
-                        </div>
-                        <div className="stat-card warning">
-                          <div className="stat-icon">📅</div>
-                          <h3>{stats.total}</h3>
-                          <p>Total Days</p>
-                        </div>
-                      </>);
-                    })()}
-                  </div>
-
-                  <h3 className="section-subtitle">Attendance Records</h3>
-                  {attendanceCalendar.length > 0 ? (
-                    <div className="table-card">
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Date</th>
-                            <th>Status</th>
-                            <th>Subject</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {attendanceCalendar.map((record, idx) => (
-                            <tr key={idx}>
-                              <td>{new Date(record.date).toLocaleDateString()}</td>
-                              <td>
-                                <span className={`status-badge ${record.status === 'present' ? 'badge-present' : 'badge-absent'}`}>
-                                  {record.status.toUpperCase()}
-                                </span>
-                              </td>
-                              <td>{record.subject || 'N/A'}</td>
-                            </tr>
+              {!attendanceViewerLoading && attendanceViewerData.length > 0 && (
+                <div className="attendance-viewer-wrapper">
+                  <div className="attendance-viewer-table-scroll">
+                    <table className="attendance-viewer-table">
+                      <thead>
+                        <tr>
+                          <th className="sticky-col">Name</th>
+                          <th className="sticky-col">Roll No</th>
+                          {Array.from({ length: 31 }, (_, i) => (
+                            <th key={`day-${i + 1}`} className="day-col">{i + 1}</th>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="empty-state"><p>No attendance records found.</p></div>
-                  )}
+                          <th className="sticky-col summary-col">Present</th>
+                          <th className="sticky-col summary-col">Absent</th>
+                          <th className="sticky-col summary-col">Attendance %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {attendanceViewerData.map((student, idx) => {
+                          const attendanceObj = student.attendance || {};
+                          const presentCount = Object.values(attendanceObj).filter(v => v === 'P').length;
+                          const absentCount = Object.values(attendanceObj).filter(v => v === 'A').length;
+                          const totalMarked = presentCount + absentCount;
+                          const attendancePercent = totalMarked > 0 ? ((presentCount / totalMarked) * 100).toFixed(1) : 0;
+
+                          return (
+                            <tr key={idx}>
+                              <td className="sticky-col name-col">{student.name}</td>
+                              <td className="sticky-col roll-col">{student.rollNo}</td>
+                              {Array.from({ length: 31 }, (_, i) => {
+                                const day = i + 1;
+                                const status = attendanceObj[day] || '-';
+                                return (
+                                  <td
+                                    key={`${idx}-${day}`}
+                                    className={`day-cell ${status === 'P' ? 'present' : status === 'A' ? 'absent' : 'not-marked'}`}
+                                  >
+                                    {status}
+                                  </td>
+                                );
+                              })}
+                              <td className="sticky-col summary-col present-count">{presentCount}</td>
+                              <td className="sticky-col summary-col absent-count">{absentCount}</td>
+                              <td className="sticky-col summary-col attendance-percent">{attendancePercent}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {!attendanceViewerLoading && attendanceViewerData.length === 0 && (
+                <div className="empty-state">
+                  <h3>📋 No Data</h3>
+                  <p>Select filters and click "Load Attendance" to view data.</p>
                 </div>
               )}
             </div>

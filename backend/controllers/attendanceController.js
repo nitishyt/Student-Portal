@@ -362,3 +362,92 @@ exports.deleteAttendance = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete attendance.' });
   }
 };
+
+// ─── Admin View Attendance (JSON) ───────────────────────────────────
+// Returns attendance data as JSON for admin dashboard viewer
+// Requires: admin role
+// Input: branch, year, month
+// Output: JSON array with student attendance matrix
+exports.adminViewAttendance = async (req, res) => {
+  try {
+    const { branch, year, month } = req.query;
+
+    // ─── Input validation ───────────────────────────────────────
+    const monthNum = parseInt(month, 10);
+    const yearNum = parseInt(year, 10);
+
+    if (!month || !year || !branch) {
+      return res.status(400).json({
+        error: 'Missing required parameters: branch, year, month'
+      });
+    }
+
+    if (monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({ error: 'Month must be between 1 and 12.' });
+    }
+
+    if (yearNum < 2000 || yearNum > 2100) {
+      return res.status(400).json({ error: 'Year must be between 2000 and 2100.' });
+    }
+
+    const validBranches = ['DS', 'AIML', 'IT', 'COMPS'];
+    if (!validBranches.includes(branch)) {
+      return res.status(400).json({
+        error: `Branch must be one of: ${validBranches.join(', ')}`
+      });
+    }
+
+    // ─── Fetch all students for the branch ───────────────────
+    const students = await Student.find({ branch }).sort({ rollNo: 1 });
+
+    if (students.length === 0) {
+      return res.status(404).json({
+        error: 'No students found for the given branch.'
+      });
+    }
+
+    // ─── Generate date range for the month ──────────────────
+    const startDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
+    const daysInMonth = getDaysInMonth(yearNum, monthNum);
+    const endDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-${daysInMonth}`;
+
+    // ─── Fetch all attendance for the month ──────────────────
+    const attendance = await Attendance.find({
+      studentId: { $in: students.map(s => s._id) },
+      date: { $gte: startDate, $lte: endDate }
+    });
+
+    // ─── Transform attendance data into a map for quick lookup
+    // Count any lecture on a date as present
+    const attendanceMap = {};
+    attendance.forEach((record) => {
+      const key = `${record.studentId.toString()}_${record.date}`;
+      // If any lecture is marked present on this date, count as present
+      const status = record.lectures.some(l => l.status === 'present') ? 'P' : 'A';
+      attendanceMap[key] = status;
+    });
+
+    // ─── Build response data ─────────────────────────────────
+    const result = students.map((student) => {
+      const attendanceObj = {};
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const key = `${student._id.toString()}_${dateStr}`;
+        attendanceObj[day] = attendanceMap[key] || '-';
+      }
+
+      return {
+        name: student.name,
+        rollNo: student.rollNo,
+        attendance: attendanceObj
+      };
+    });
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('Error fetching admin attendance view:', error);
+    res.status(500).json({ error: 'Failed to fetch attendance data.' });
+  }
+};

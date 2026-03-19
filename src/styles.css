@@ -2293,3 +2293,141 @@ a:hover {
 .bulk-attendance-wrapper {
   width: 100%;
 }
+
+/* Attendance Viewer Table */
+.attendance-viewer-wrapper {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
+  margin-top: 24px;
+}
+
+.attendance-viewer-table-scroll {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.attendance-viewer-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1200px;
+}
+
+.attendance-viewer-table thead {
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.attendance-viewer-table thead th {
+  padding: 14px 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  border-bottom: 2px solid #e2e8f0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.attendance-viewer-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.2s ease;
+}
+
+.attendance-viewer-table tbody tr:hover {
+  background: #f0f9ff;
+}
+
+.attendance-viewer-table tbody td {
+  padding: 12px 8px;
+  font-size: 13px;
+  color: #334155;
+  text-align: center;
+  border-right: 1px solid #f1f5f9;
+}
+
+.attendance-viewer-table .sticky-col {
+  position: sticky;
+  z-index: 5;
+  background: inherit;
+}
+
+.attendance-viewer-table thead th.sticky-col {
+  background: #f8fafc;
+}
+
+.attendance-viewer-table tbody tr:hover td.sticky-col {
+  background: #f0f9ff;
+}
+
+.attendance-viewer-table .name-col {
+  left: 0;
+  text-align: left;
+  min-width: 180px;
+  font-weight: 600;
+  background: white;
+}
+
+.attendance-viewer-table .roll-col {
+  left: 180px;
+  text-align: center;
+  min-width: 100px;
+  font-weight: 600;
+  background: white;
+}
+
+.attendance-viewer-table .day-col {
+  min-width: 40px;
+  max-width: 40px;
+}
+
+.attendance-viewer-table .day-cell {
+  min-width: 40px;
+  max-width: 40px;
+  padding: 12px 4px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.attendance-viewer-table .day-cell.present {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.attendance-viewer-table .day-cell.absent {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.attendance-viewer-table .day-cell.not-marked {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
+.attendance-viewer-table .summary-col {
+  left: 280px;
+  min-width: 90px;
+  font-weight: 600;
+  text-align: center;
+  background: white;
+}
+
+.attendance-viewer-table .present-count {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.attendance-viewer-table .absent-count {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+
+.attendance-viewer-table .attendance-percent {
+  color: #0891b2;
+  background: rgba(6, 182, 212, 0.1);
+}
