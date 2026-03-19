@@ -245,7 +245,7 @@ const AdminDashboard = () => {
                     </div>
                     <div className="form-group">
                       <label className="form-label">Roll Number</label>
-                      <input className="form-input" type="text" value={studentForm.rollNo} onChange={(e) => setStudentForm({ ...studentForm, rollNo: e.target.value })} placeholder="Enter roll number" required />
+                      <input className="form-input" type="number" value={studentForm.rollNo} onChange={(e) => setStudentForm({ ...studentForm, rollNo: e.target.value })} placeholder="Enter roll number" required />
                     </div>
                   </div>
                   <div className="form-row">

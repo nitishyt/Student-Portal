@@ -315,6 +315,35 @@ a:hover {
   font-weight: 400;
 }
 
+.password-input-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.password-input-wrapper input {
+  flex: 1;
+  margin: 0;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  color: #64748b;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle-btn:hover {
+  color: #0891b2;
+}
+
 /* Submit Button */
 .login-btn {
   width: 100%;
@@ -1205,6 +1234,7 @@ a:hover {
 
 .form-input,
 .form-select {
+  -webkit-appearance: none;
   height: 46px;
   padding: 0 14px;
   border: 1.5px solid #e2e8f0;
