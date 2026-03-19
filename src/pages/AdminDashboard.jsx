@@ -163,7 +163,6 @@ const AdminDashboard = () => {
     { key: 'students', icon: '👥', label: 'Students' },
     { key: 'faculty', icon: '🎓', label: 'Faculty' },
     { key: 'attendance', icon: '📊', label: 'Attendance' },
-    { key: 'downloadAttendance', icon: '📥', label: 'Download Attendance' },
     { key: 'results', icon: '📝', label: 'Results' }
   ];
 
@@ -478,11 +477,6 @@ const AdminDashboard = () => {
                 </div>
               )}
             </div>
-          )}
-
-          {/* ─── DOWNLOAD ATTENDANCE SECTION ────────── */}
-          {activeSection === 'downloadAttendance' && (
-            <AttendanceDownload />
           )}
 
           {/* ─── RESULTS SECTION ───────────────────── */}
