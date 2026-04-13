@@ -1,17 +1,26 @@
 # Dependencies
 node_modules/
+package-lock.json
 
 # Build outputs
 dist/
 build/
 
-# Environment variables
+# Environment variables (NEVER commit these - contain private keys)
 .env
 .env.local
 .env.development
 .env.production
 .env.production.local
 .env.*.local
+
+# Test and debug files
+testLogin.js
+resetAdmin.js
+setupAdmin.js
+setupAdminDebug.js
+test*.js
+debug*.js
 
 # IDE files
 .vscode/
@@ -31,7 +40,6 @@ build/
 Thumbs.db
 .AppleDouble
 .LSOverride
-.DS_Store
 ._*
 
 # Logs
