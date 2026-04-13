@@ -9,6 +9,12 @@ const attendanceController = require('../controllers/attendanceController');
 // Query params: month, year, branch, standard
 router.get('/download/monthly', verifyToken, authorize('admin', 'faculty'), attendanceController.downloadMonthlyAttendance);
 
+// ─── Daily attendance analysis ──────────────────────────────────────
+// Only admin and faculty can access this endpoint
+// Query params: startDate, endDate, branch, standard
+// Returns per-day breakdown of present/absent students
+router.get('/daily-analysis', verifyToken, authorize('admin', 'faculty'), attendanceController.getDailyAnalysis);
+
 // ─── Admin view attendance (JSON) ────────────────────────────────────
 // Only admin can access this endpoint
 // Query params: branch, year, month

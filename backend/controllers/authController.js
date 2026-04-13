@@ -111,16 +111,23 @@ exports.login = async (req, res) => {
 
     const { username, password, role } = req.body;
 
+    // DEBUG LOG
+    console.log('🔐 Login attempt:', { username, role, passwordLength: password?.length });
+
     // Always query by username only to prevent enumeration via role hint
     const user = await User.findOne({ username }).select(
       '+password +failedLoginAttempts +lockUntil +tokenVersion +mustChangePassword'
     );
     if (!user) {
+      console.log('❌ User not found:', username);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    console.log('✓ User found:', { username: user.username, userRole: user.role });
+
     // If client sent a role hint and it doesn't match, still return same error
     if (role && user.role !== role) {
+      console.log('❌ Role mismatch:', { sent: role, actual: user.role });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -134,7 +141,10 @@ exports.login = async (req, res) => {
     }
 
     const isValid = await bcrypt.compare(password, user.password);
+    console.log('🔑 Password check:', { isValid });
+    
     if (!isValid) {
+      console.log('❌ Password mismatch for user:', username);
       const attempts = (user.failedLoginAttempts || 0) + 1;
       const update = { failedLoginAttempts: attempts };
       if (attempts >= MAX_FAILED_ATTEMPTS) {
@@ -144,6 +154,8 @@ exports.login = async (req, res) => {
       await User.updateOne({ _id: user._id }, { $set: update });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    console.log('✅ LOGIN SUCCESSFUL for:', username);
 
     // ─── Successful login: reset failed attempts ─────────────────
     if (user.failedLoginAttempts > 0 || user.lockUntil) {

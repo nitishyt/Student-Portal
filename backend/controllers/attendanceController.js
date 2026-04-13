@@ -451,3 +451,196 @@ exports.adminViewAttendance = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch attendance data.' });
   }
 };
+
+// ─── Daily Attendance Analysis ──────────────────────────────────────
+// Returns per-day analysis showing present/absent students for each date
+// Requires: admin or faculty role
+// Input: startDate, endDate, branch, standard
+// Output: JSON with daily breakdown of present/absent students
+exports.getDailyAnalysis = async (req, res) => {
+  try {
+    const { startDate, endDate, branch, standard } = req.query;
+    const facultyUserId = req.user.id;
+
+    // ─── Input validation ───────────────────────────────────────
+    if (!startDate || !endDate || !branch || !standard) {
+      return res.status(400).json({
+        error: 'Missing required parameters: startDate, endDate, branch, standard'
+      });
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      return res.status(400).json({
+        error: 'Invalid date format. Use YYYY-MM-DD.'
+      });
+    }
+
+    if (startDate > endDate) {
+      return res.status(400).json({
+        error: 'Start date must be before or equal to end date.'
+      });
+    }
+
+    const validBranches = ['DS', 'AIML', 'IT', 'COMPS'];
+    const validStandards = ['FE', 'SE', 'TE', 'BE'];
+
+    if (!validBranches.includes(branch)) {
+      return res.status(400).json({
+        error: `Branch must be one of: ${validBranches.join(', ')}`
+      });
+    }
+
+    if (!validStandards.includes(standard)) {
+      return res.status(400).json({
+        error: `Standard must be one of: ${validStandards.join(', ')}`
+      });
+    }
+
+    // ─── Get faculty's subject ──────────────────────────────────
+    const faculty = await Faculty.findOne({ userId: facultyUserId });
+
+    if (!faculty) {
+      return res.status(403).json({
+        error: 'Faculty profile not found. Only faculty members can view daily analysis.'
+      });
+    }
+
+    const facultySubject = faculty.subject;
+
+    // ─── Fetch all students for the class ────────────────────
+    const students = await Student.find({ branch, standard }).sort({ rollNo: 1 });
+
+    if (students.length === 0) {
+      return res.status(404).json({
+        error: 'No students found for the given branch and standard.'
+      });
+    }
+
+    // ─── Fetch all attendance for the date range ────────────────
+    const attendance = await Attendance.find({
+      studentId: { $in: students.map(s => s._id) },
+      date: { $gte: startDate, $lte: endDate }
+    });
+
+    // ─── Helper function: Check if date is weekend ──────────────
+    const isWeekend = (dateStr) => {
+      const date = new Date(dateStr);
+      const dayOfWeek = date.getDay();
+      return dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
+    };
+
+    // ─── Helper function: Get day of week name ─────────────────
+    const getDayOfWeekName = (dateStr) => {
+      const date = new Date(dateStr);
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      return days[date.getDay()];
+    };
+
+    // ─── Generate array of all dates in range ──────────────────
+    const dateArray = [];
+    let currentDate = new Date(startDate + 'T00:00:00');
+    const endDateObj = new Date(endDate + 'T00:00:00');
+
+    while (currentDate <= endDateObj) {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      dateArray.push(`${year}-${month}-${day}`);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // ─── Build attendance map for quick lookup ──────────────────
+    const attendanceMap = {};
+    attendance.forEach((record) => {
+      const key = `${record.studentId.toString()}_${record.date}`;
+      // Filter lectures to only this faculty's subject
+      const subjectLectures = record.lectures.filter(l => l.subject === facultySubject);
+      // If any lecture for this subject is marked present, mark day as present
+      const status = subjectLectures.some(l => l.status === 'present') ? 'present' : 'absent';
+      // Only set if there are lectures for this subject
+      if (subjectLectures.length > 0) {
+        attendanceMap[key] = status;
+      }
+    });
+
+    // ─── Build daily breakdown ──────────────────────────────────
+    const dailyBreakdown = dateArray.map((date) => {
+      const weekend = isWeekend(date);
+      const dayOfWeek = getDayOfWeekName(date);
+      const present = [];
+      const absent = [];
+
+      // Categorize each student
+      students.forEach((student) => {
+        const key = `${student._id.toString()}_${date}`;
+        const status = attendanceMap[key];
+
+        // Only categorize if there's an attendance record for this subject
+        if (status === 'present') {
+          present.push({
+            name: student.name,
+            rollNo: student.rollNo
+          });
+        } else if (status === 'absent') {
+          absent.push({
+            name: student.name,
+            rollNo: student.rollNo
+          });
+        }
+        // If no status, student not marked for this faculty's subject
+      });
+
+      return {
+        date,
+        dayOfWeek,
+        present,
+        absent,
+        presentCount: present.length,
+        absentCount: absent.length,
+        isWeekend: weekend
+      };
+    });
+
+    // ─── Calculate overall summary statistics ───────────────────
+    let totalPresentCount = 0;
+    let totalAbsentCount = 0;
+    let daysWithData = 0;
+
+    dailyBreakdown.forEach((day) => {
+      if (day.presentCount > 0 || day.absentCount > 0) {
+        totalPresentCount += day.presentCount;
+        totalAbsentCount += day.absentCount;
+        daysWithData++;
+      }
+    });
+
+    const averagePresent = daysWithData > 0 ? (totalPresentCount / daysWithData).toFixed(1) : 0;
+    const averageAbsent = daysWithData > 0 ? (totalAbsentCount / daysWithData).toFixed(1) : 0;
+    const totalMarked = totalPresentCount + totalAbsentCount;
+    const averagePercentage = totalMarked > 0 ? ((totalPresentCount / totalMarked) * 100).toFixed(1) : 0;
+
+    res.json({
+      totalStudentsInClass: students.length,
+      dailyBreakdown,
+      summary: {
+        branch,
+        standard,
+        subject: facultySubject,
+        dateRange: {
+          start: startDate,
+          end: endDate
+        },
+        totalDays: dailyBreakdown.length,
+        daysWithData,
+        totalStudents: students.length,
+        averagePresent: parseFloat(averagePresent),
+        averageAbsent: parseFloat(averageAbsent),
+        averagePercentage: parseFloat(averagePercentage)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error generating daily analysis:', error);
+    res.status(500).json({ error: 'Failed to generate daily analysis.' });
+  }
+};
